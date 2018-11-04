@@ -1,10 +1,17 @@
-#ifndef FLOPPY_H
-#define FLOPPY_H
+//
+//  VoodooFloppyController.hpp
+//  VoodooFloppy
+//
+//  Created by John Davis on 11/4/18.
+//  Copyright © 2018 Goldfish64. All rights reserved.
+//
+
+#ifndef VoodooFloppyController_hpp
+#define VoodooFloppyController_hpp
 
 #include <IOKit/IOService.h>
-#include <sys/systm.h>
-#include <mach/mach_types.h>
 
+// Floppy drive IRQ.
 #define FLOPPY_IRQ  6
 
 // Floppy drive types (from CMOS).
@@ -154,7 +161,6 @@ enum {
 #define FLOPPY_SPEED_250KBPS    0x2
 #define FLOPPY_SPEED_1MBPS      0x3
 
-
 #define FLOPPY_CMD_RETRY_COUNT  10
 #define FLOPPY_IRQ_WAIT_TIME    500
 #define FLOPPY_DMALENGTH 0x4800
@@ -162,32 +168,29 @@ enum {
 #define FLOPPY_VERSION_NONE     0xFF
 #define FLOPPY_VERSION_ENHANCED 0x90
 
-class VoodooFloppy : IOService {
-    OSDeclareDefaultStructors(VoodooFloppy);
+// VoodooFloppyController class.
+class VoodooFloppyController : IOService {
+    typedef IOService super;
+    OSDeclareDefaultStructors(VoodooFloppyController);
+    
 public:
-    bool irqTriggered;
-    virtual bool init(OSDictionary *dictionary = 0);
-    virtual void free(void);
-    virtual IOService *probe(IOService *provider, SInt32 *score);
-    virtual bool start(IOService *provider);
-    virtual void stop(IOService *provider);
+    virtual IOService *probe(IOService *provider, SInt32 *score) override;
+    virtual bool start(IOService *provider) override;
+    virtual void stop(IOService *provider) override;
     
 private:
+    bool irqTriggered;
     
-    IOWorkLoop *_workLoop;
-    IOInterruptEventSource *_interruptSource;
+    static void interruptHandler(OSObject*, void *refCon, IOService*, int);
     
-    static void interruptHandler(OSObject*, void* refCon, IOService*, int);
-    void packetReadyMouse(IOInterruptEventSource *, int);
+    bool waitInterrupt(uint16_t timeout);
+    void writeData(uint8_t data);
+    uint8_t readData(void);
+    void senseInterrupt(uint8_t *st0, uint8_t *cyl);
+    bool detectDrives(uint8_t *outTypeA, uint8_t *outTypeB);
+    uint8_t getControllerVersion(void);
+    void resetController(void);
     
-    
-    bool wait_for_irq(uint16_t timeout);
-    void write_data(uint8_t data);
-    uint8_t read_data(void);
-    void sense_interrupt(uint8_t* st0, uint8_t* cyl);
-    uint8_t version(void);
-    bool detect(uint8_t *outTypeA, uint8_t *outTypeB);
-    void reset(void);
 };
 
-#endif
+#endif /* VoodooFloppyController_hpp */

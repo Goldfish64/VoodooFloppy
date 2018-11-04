@@ -7,17 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4143B5FD218F780C0066B7AC /* VoodooFloppy.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4143B5FC218F780C0066B7AC /* VoodooFloppy.hpp */; };
-		4143B5FF218F780C0066B7AC /* VoodooFloppy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4143B5FE218F780C0066B7AC /* VoodooFloppy.cpp */; };
 		4143B607218F79510066B7AC /* IO.h in Headers */ = {isa = PBXBuildFile; fileRef = 4143B606218F79510066B7AC /* IO.h */; };
+		4143B60E218F94BB0066B7AC /* VoodooFloppyController.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4143B60C218F94BB0066B7AC /* VoodooFloppyController.cpp */; };
+		4143B60F218F94BB0066B7AC /* VoodooFloppyController.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4143B60D218F94BB0066B7AC /* VoodooFloppyController.hpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		4143B5F9218F780C0066B7AC /* VoodooFloppy.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoodooFloppy.kext; sourceTree = BUILT_PRODUCTS_DIR; };
-		4143B5FC218F780C0066B7AC /* VoodooFloppy.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VoodooFloppy.hpp; sourceTree = "<group>"; };
-		4143B5FE218F780C0066B7AC /* VoodooFloppy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VoodooFloppy.cpp; sourceTree = "<group>"; };
 		4143B600218F780C0066B7AC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4143B606218F79510066B7AC /* IO.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IO.h; sourceTree = "<group>"; };
+		4143B60C218F94BB0066B7AC /* VoodooFloppyController.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VoodooFloppyController.cpp; sourceTree = "<group>"; };
+		4143B60D218F94BB0066B7AC /* VoodooFloppyController.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VoodooFloppyController.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,9 +51,9 @@
 			isa = PBXGroup;
 			children = (
 				4143B606218F79510066B7AC /* IO.h */,
-				4143B5FC218F780C0066B7AC /* VoodooFloppy.hpp */,
-				4143B5FE218F780C0066B7AC /* VoodooFloppy.cpp */,
 				4143B600218F780C0066B7AC /* Info.plist */,
+				4143B60C218F94BB0066B7AC /* VoodooFloppyController.cpp */,
+				4143B60D218F94BB0066B7AC /* VoodooFloppyController.hpp */,
 			);
 			path = VoodooFloppy;
 			sourceTree = "<group>";
@@ -66,7 +66,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4143B607218F79510066B7AC /* IO.h in Headers */,
-				4143B5FD218F780C0066B7AC /* VoodooFloppy.hpp in Headers */,
+				4143B60F218F94BB0066B7AC /* VoodooFloppyController.hpp in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -138,7 +138,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4143B5FF218F780C0066B7AC /* VoodooFloppy.cpp in Sources */,
+				4143B60E218F94BB0066B7AC /* VoodooFloppyController.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

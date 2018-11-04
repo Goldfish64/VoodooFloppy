@@ -20,15 +20,16 @@
 	<string>${MODULE_VERSION}</string>
 	<key>IOKitPersonalities</key>
 	<dict>
-		<key>VoodooFloppy</key>
+		<key>VoodooFloppyController</key>
 		<dict>
 			<key>CFBundleIdentifier</key>
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>IOClass</key>
-			<string>$(PRODUCT_NAME:rfc1034identifier)</string>
+			<string>VoodooFloppyController</string>
 			<key>IONameMatch</key>
 			<array>
 				<string>PNP0700</string>
+                <string>PNP0701</string>
 			</array>
 			<key>IOProviderClass</key>
 			<string>IOACPIPlatformDevice</string>
