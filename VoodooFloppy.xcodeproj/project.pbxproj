@@ -10,6 +10,8 @@
 		4143B607218F79510066B7AC /* IO.h in Headers */ = {isa = PBXBuildFile; fileRef = 4143B606218F79510066B7AC /* IO.h */; };
 		4143B60E218F94BB0066B7AC /* VoodooFloppyController.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4143B60C218F94BB0066B7AC /* VoodooFloppyController.cpp */; };
 		4143B60F218F94BB0066B7AC /* VoodooFloppyController.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4143B60D218F94BB0066B7AC /* VoodooFloppyController.hpp */; };
+		4143B612218FA4AC0066B7AC /* VoodooFloppyDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4143B610218FA4AC0066B7AC /* VoodooFloppyDevice.cpp */; };
+		4143B613218FA4AC0066B7AC /* VoodooFloppyDevice.hpp in Headers */ = {isa = PBXBuildFile; fileRef = 4143B611218FA4AC0066B7AC /* VoodooFloppyDevice.hpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,6 +20,8 @@
 		4143B606218F79510066B7AC /* IO.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IO.h; sourceTree = "<group>"; };
 		4143B60C218F94BB0066B7AC /* VoodooFloppyController.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VoodooFloppyController.cpp; sourceTree = "<group>"; };
 		4143B60D218F94BB0066B7AC /* VoodooFloppyController.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VoodooFloppyController.hpp; sourceTree = "<group>"; };
+		4143B610218FA4AC0066B7AC /* VoodooFloppyDevice.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VoodooFloppyDevice.cpp; sourceTree = "<group>"; };
+		4143B611218FA4AC0066B7AC /* VoodooFloppyDevice.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = VoodooFloppyDevice.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +58,8 @@
 				4143B600218F780C0066B7AC /* Info.plist */,
 				4143B60C218F94BB0066B7AC /* VoodooFloppyController.cpp */,
 				4143B60D218F94BB0066B7AC /* VoodooFloppyController.hpp */,
+				4143B610218FA4AC0066B7AC /* VoodooFloppyDevice.cpp */,
+				4143B611218FA4AC0066B7AC /* VoodooFloppyDevice.hpp */,
 			);
 			path = VoodooFloppy;
 			sourceTree = "<group>";
@@ -67,6 +73,7 @@
 			files = (
 				4143B607218F79510066B7AC /* IO.h in Headers */,
 				4143B60F218F94BB0066B7AC /* VoodooFloppyController.hpp in Headers */,
+				4143B613218FA4AC0066B7AC /* VoodooFloppyDevice.hpp in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -139,6 +146,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4143B60E218F94BB0066B7AC /* VoodooFloppyController.cpp in Sources */,
+				4143B612218FA4AC0066B7AC /* VoodooFloppyDevice.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

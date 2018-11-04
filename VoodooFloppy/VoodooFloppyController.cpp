@@ -18,26 +18,19 @@ OSDefineMetaClassAndStructors(VoodooFloppyController, IOService)
 // Define the driver's superclass.
 #define super IOService
 
-IOService *VoodooFloppyController::probe(IOService *provider, SInt32 *score) {
-    IOLog("VoodooFloppyController: probe()\n");
-    
-    // Detect drives to see if we should load or not.
-    uint8_t driveTypeA, driveTypeB = 0;
-    if (!detectDrives(&driveTypeA, &driveTypeB)) {
-        IOLog("VoodooFloppyController: No drives found in CMOS. Aborting.\n");
-        return NULL;
-    }
-    
-    // Go ahead with probe.
-    return super::probe(provider, score);
-}
-
 bool VoodooFloppyController::start(IOService *provider) {
     IOLog("VoodooFloppyController: start()\n");
     
     // Start superclass first.
     if (!super::start(provider))
         return false;
+    
+    // Detect drives to see if we should load or not.
+    uint8_t driveTypeA, driveTypeB = 0;
+    if (!detectDrives(&driveTypeA, &driveTypeB)) {
+        IOLog("VoodooFloppyController: No drives found in CMOS. Aborting.\n");
+        return false;
+    }
     
     // Hook up interrupt handler.
     IOReturn status = getProvider()->registerInterrupt(0, 0, interruptHandler, this);
@@ -57,12 +50,21 @@ bool VoodooFloppyController::start(IOService *provider) {
     
     // If version is 0xFF, that means there isn't a floppy controller.
     if (version == FLOPPY_VERSION_NONE) {
-        IOLog("VoodooFloppy: No floppy controller present. Aborting.\e[0m\n");
+        IOLog("VoodooFloppyController: No floppy controller present. Aborting.\n");
         return false;
     }
     
     // Print version.
-    IOLog("VoodooFloppy: Version: 0x%X.\n", version);
+    IOLog("VoodooFloppyController: Version: 0x%X.\n", version);
+    
+    // Configure and reset controller.
+    configureController(false, true, false, 0, 0);
+    resetController();
+    
+    // Publish drive A if present.
+    if (driveTypeA) {
+        IOLog("VoodooFloppyController: Init drive A: here.\n");
+    }
     
     return true;
 }
@@ -184,7 +186,7 @@ uint8_t VoodooFloppyController::getControllerVersion(void) {
  * Resets the floppy controller.
  */
 void VoodooFloppyController::resetController(void) {
-    IOLog("VoodooFloppyController: resetController()n");
+    IOLog("VoodooFloppyController: resetController()\n");
     
     // Disable and re-enable floppy controller.
     outb(FLOPPY_REG_DOR, 0x00);
@@ -195,4 +197,24 @@ void VoodooFloppyController::resetController(void) {
     uint8_t st0, cyl;
     for(int i = 0; i < 4; i++)
         senseInterrupt(&st0, &cyl);
+}
+
+// Configure default values.
+// EIS - No Implied Seeks.
+// EFIFO - FIFO Disabled.
+// POLL - Polling Enabled.
+// FIFOTHR - FIFO Threshold Set to 1 Byte.
+// PRETRK - Pre-Compensation Set to Track 0.
+void VoodooFloppyController::configureController(bool eis, bool efifo, bool poll, uint8_t fifothr, uint8_t pretrk) {
+    IOLog("VoodooFloppyController: configureController()\n");
+    
+    // Send configure command.
+    writeData(FLOPPY_CMD_CONFIGURE);
+    writeData(0x00);
+    uint8_t data = (!eis << 6) | (!efifo << 5) | (poll << 4) | fifothr;
+    writeData(data);
+    writeData(pretrk);
+    
+    // Lock configuration.
+    writeData(FLOPPY_CMD_LOCK);
 }

@@ -174,7 +174,6 @@ class VoodooFloppyController : IOService {
     OSDeclareDefaultStructors(VoodooFloppyController);
     
 public:
-    virtual IOService *probe(IOService *provider, SInt32 *score) override;
     virtual bool start(IOService *provider) override;
     virtual void stop(IOService *provider) override;
     
@@ -190,7 +189,7 @@ private:
     bool detectDrives(uint8_t *outTypeA, uint8_t *outTypeB);
     uint8_t getControllerVersion(void);
     void resetController(void);
-    
+    void configureController(bool eis, bool efifo, bool poll, uint8_t fifothr, uint8_t pretrk);
 };
 
 #endif /* VoodooFloppyController_hpp */
