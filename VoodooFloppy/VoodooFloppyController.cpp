@@ -10,7 +10,7 @@
 #include "IO.h"
 
 #include "VoodooFloppyController.hpp"
-#include "VoodooFloppyDevice.hpp"
+#include "VoodooFloppyStorageDevice.hpp"
 
 // This required macro defines the class's constructors, destructors,
 // and several other methods I/O Kit requires.
@@ -61,8 +61,8 @@ bool VoodooFloppyController::start(IOService *provider) {
     
     // Publish drive A if present.
     if (driveTypeA) {
-        IOLog("VoodooFloppyController: Creating VoodooFloppyDevice for drive A.\n");
-        VoodooFloppyDevice *floppyDevice = OSTypeAlloc(VoodooFloppyDevice);
+        IOLog("VoodooFloppyController: Creating VoodooFloppyStorageDevice for drive A.\n");
+        VoodooFloppyStorageDevice *floppyDevice = OSTypeAlloc(VoodooFloppyStorageDevice);
         OSDictionary *proper = OSDictionary::withCapacity(1);
         //proper->setObject("test", kIOBlockStorageDeviceTypeGeneric);
         if (!floppyDevice || !floppyDevice->init(proper) || !floppyDevice->attach(this)) {

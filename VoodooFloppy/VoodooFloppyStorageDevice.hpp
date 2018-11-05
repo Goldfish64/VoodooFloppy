@@ -1,21 +1,21 @@
 //
-//  VoodooFloppyDevice.hpp
+//  VoodooFloppyStorageDevice.hpp
 //  VoodooFloppy
 //
 //  Created by John Davis on 11/4/18.
 //  Copyright © 2018 Goldfish64. All rights reserved.
 //
 
-#ifndef VoodooFloppyDevice_hpp
-#define VoodooFloppyDevice_hpp
+#ifndef VoodooFloppyStorageDevice_hpp
+#define VoodooFloppyStorageDevice_hpp
 
 #include <IOKit/IOService.h>
 #include <IOKit/storage/IOBlockStorageDevice.h>
 
-// VoodooFloppyDevice class.
-class VoodooFloppyDevice : public IOBlockStorageDevice {
+// VoodooFloppyStorageDevice class.
+class VoodooFloppyStorageDevice : public IOBlockStorageDevice {
     typedef IOService super;
-    OSDeclareDefaultStructors(VoodooFloppyDevice);
+    OSDeclareDefaultStructors(VoodooFloppyStorageDevice);
     
 public:
     IOReturn doEjectMedia() override;
@@ -40,4 +40,4 @@ public:
    // virtual void detach(IOService *provider) override;
 };
 
-#endif /* VoodooFloppyDevice_hpp */
+#endif /* VoodooFloppyStorageDevice_hpp */
