@@ -169,6 +169,9 @@ enum {
 #define FLOPPY_VERSION_NONE     0xFF
 #define FLOPPY_VERSION_ENHANCED 0x90
 
+#define FLOPPY_IOREG_DRIVE_NUM  "drive-id"
+#define FLOPPY_IOREG_DRIVE_TYPE "drive-type"
+
 // VoodooFloppyController class.
 class VoodooFloppyController : IOService {
     typedef IOService super;

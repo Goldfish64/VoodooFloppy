@@ -63,8 +63,10 @@ bool VoodooFloppyController::start(IOService *provider) {
     if (driveTypeA) {
         IOLog("VoodooFloppyController: Creating VoodooFloppyStorageDevice for drive A.\n");
         VoodooFloppyStorageDevice *floppyDevice = OSTypeAlloc(VoodooFloppyStorageDevice);
-        OSDictionary *proper = OSDictionary::withCapacity(1);
-        //proper->setObject("test", kIOBlockStorageDeviceTypeGeneric);
+        OSDictionary *proper = OSDictionary::withCapacity(2);
+        
+        proper->setObject(FLOPPY_IOREG_DRIVE_NUM, OSNumber::withNumber((uint8_t)0, 8));
+        proper->setObject(FLOPPY_IOREG_DRIVE_TYPE, OSNumber::withNumber(FLOPPY_TYPE_1440_35, 8));
         if (!floppyDevice || !floppyDevice->init(proper) || !floppyDevice->attach(this)) {
             IOLog("VoodooFloppyController: failed to create\n");
             OSSafeReleaseNULL(floppyDevice);

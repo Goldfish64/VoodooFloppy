@@ -14,14 +14,20 @@
 // and several other methods I/O Kit requires.
 OSDefineMetaClassAndStructors(VoodooFloppyStorageDevice, IOBlockStorageDevice)
 
-bool VoodooFloppyStorageDevice::start(IOService *provider) {
-    IOLog("VoodooFloppyStorageDevice: start()\n");
-    
-    // Start superclass first.
-    if (!super::start(provider))
+bool VoodooFloppyStorageDevice::attach(IOService *provider) {
+    IOLog("VoodooFloppyStorageDevice::attach()\n");
+    if (!super::attach(provider))
         return false;
     
+    // Save reference to controller.
+    _controller = (VoodooFloppyController*)provider;
+    IOLog("VoodooFloppyStorageDevice: Drive number %u, type 0x%X\n", ((OSNumber*)getProperty(FLOPPY_IOREG_DRIVE_NUM))->unsigned8BitValue(), ((OSNumber*)getProperty(FLOPPY_IOREG_DRIVE_TYPE))->unsigned8BitValue());
     return true;
+}
+
+void VoodooFloppyStorageDevice::detach(IOService *provider) {
+    IOLog("VoodooFloppyStorageDevice::detach()\n");
+    super::detach(provider);
 }
 
 IOReturn VoodooFloppyStorageDevice::doEjectMedia() {
@@ -97,6 +103,6 @@ IOReturn VoodooFloppyStorageDevice::reportWriteProtection(bool *isWriteProtected
 }
 
 IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) {
-    IOLog("VoodooFloppyStorageDevice::doAsyncReadWrite()\n");
+    IOLog("VoodooFloppyStorageDevice::doAsyncReadWrite(start %llu, %llu blocks)\n", block, nblks);
     return kIOReturnUnsupported;
 }
