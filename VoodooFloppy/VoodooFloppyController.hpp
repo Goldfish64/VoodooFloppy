@@ -10,6 +10,7 @@
 #define VoodooFloppyController_hpp
 
 #include <IOKit/IOService.h>
+#include <IOKit/IOTypes.h>
 
 // Floppy drive IRQ.
 #define FLOPPY_IRQ  6

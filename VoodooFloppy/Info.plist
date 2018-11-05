@@ -41,6 +41,8 @@
     <string>${MODULE_VERSION}</string>
 	<key>OSBundleLibraries</key>
 	<dict>
+        <key>com.apple.iokit.IOStorageFamily</key>
+        <string>1.0</string>
 		<key>com.apple.kpi.iokit</key>
 		<string>10.0</string>
 		<key>com.apple.kpi.libkern</key>

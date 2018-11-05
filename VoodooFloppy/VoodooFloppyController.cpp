@@ -10,13 +10,11 @@
 #include "IO.h"
 
 #include "VoodooFloppyController.hpp"
+#include "VoodooFloppyDevice.hpp"
 
 // This required macro defines the class's constructors, destructors,
 // and several other methods I/O Kit requires.
 OSDefineMetaClassAndStructors(VoodooFloppyController, IOService)
-
-// Define the driver's superclass.
-#define super IOService
 
 bool VoodooFloppyController::start(IOService *provider) {
     IOLog("VoodooFloppyController: start()\n");
@@ -63,7 +61,17 @@ bool VoodooFloppyController::start(IOService *provider) {
     
     // Publish drive A if present.
     if (driveTypeA) {
-        IOLog("VoodooFloppyController: Init drive A: here.\n");
+        IOLog("VoodooFloppyController: Creating VoodooFloppyDevice for drive A.\n");
+        VoodooFloppyDevice *floppyDevice = OSTypeAlloc(VoodooFloppyDevice);
+        OSDictionary *proper = OSDictionary::withCapacity(1);
+        //proper->setObject("test", kIOBlockStorageDeviceTypeGeneric);
+        if (!floppyDevice || !floppyDevice->init(proper) || !floppyDevice->attach(this)) {
+            IOLog("VoodooFloppyController: failed to create\n");
+            OSSafeReleaseNULL(floppyDevice);
+        }
+        
+        floppyDevice->retain();
+        floppyDevice->registerService();
     }
     
     return true;
