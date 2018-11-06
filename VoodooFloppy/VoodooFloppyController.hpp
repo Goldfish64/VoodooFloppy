@@ -11,6 +11,8 @@
 
 #include <IOKit/IOService.h>
 #include <IOKit/IOTypes.h>
+#include <IOKit/IOCommandGate.h>
+#include <IOKit/storage/IOBlockStorageDevice.h>
 
 // Floppy drive IRQ.
 #define FLOPPY_IRQ  6
@@ -181,8 +183,14 @@ public:
     virtual bool start(IOService *provider) override;
     virtual void stop(IOService *provider) override;
     
+    bool initDrive(uint8_t driveNumber, uint8_t driveType);
+    bool readDrive(uint8_t driveNumber, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes);
+    
 private:
-    bool irqTriggered;
+    bool _irqTriggered;
+    IOCommandGate *_cmdGate;
+    
+    IOReturn testAction(OSObject *target, void *arg0, void *arg1, void *arg2, void *arg3);
     
     static void interruptHandler(OSObject*, void *refCon, IOService*, int);
     
@@ -190,10 +198,25 @@ private:
     void writeData(uint8_t data);
     uint8_t readData(void);
     void senseInterrupt(uint8_t *st0, uint8_t *cyl);
+    void setDriveData(uint8_t stepRate, uint16_t loadTime, uint8_t unloadTime, bool dma);
     bool detectDrives(uint8_t *outTypeA, uint8_t *outTypeB);
     uint8_t getControllerVersion(void);
     void resetController(void);
     void configureController(bool eis, bool efifo, bool poll, uint8_t fifothr, uint8_t pretrk);
+    
+    int8_t getMotorNum(uint8_t driveNumber);
+    bool setMotorOn(uint8_t driveNumber);
+    bool setMotorOff(uint8_t driveNumber);
+    
+    void setTransferSpeed(uint8_t driveType);
+    bool recalibrate(uint8_t driveNumber);
+    void setDma(bool write);
+    
+    void lbaToChs(uint32_t lba, uint16_t* cyl, uint16_t* head, uint16_t* sector);
+    uint8_t parseError(uint8_t st0, uint8_t st1, uint8_t st2);
+    bool seek(uint8_t driveNumber, uint8_t track);
+    int8_t readSector(uint8_t driveNumber, uint8_t head, uint8_t track, uint8_t sector);
+    bool readSectors(uint8_t driveNumber, uint32_t sectorLba, uint8_t *outBuffer, uint32_t length);
 };
 
 #endif /* VoodooFloppyController_hpp */
