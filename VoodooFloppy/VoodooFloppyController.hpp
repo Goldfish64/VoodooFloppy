@@ -12,6 +12,7 @@
 #include <IOKit/IOService.h>
 #include <IOKit/IOTypes.h>
 #include <IOKit/IOCommandGate.h>
+#include <IOKit/IOMemoryDescriptor.h>
 #include <IOKit/storage/IOBlockStorageDevice.h>
 
 // Floppy drive IRQ.
@@ -166,6 +167,7 @@ enum {
 
 #define FLOPPY_CMD_RETRY_COUNT  10
 #define FLOPPY_IRQ_WAIT_TIME    500
+#define FLOPPY_DMASTART  0x500
 #define FLOPPY_DMALENGTH 0x4800
 #define FLOPPY_SECTORS_PER_TRACK 18
 #define FLOPPY_VERSION_NONE     0xFF
@@ -180,43 +182,54 @@ class VoodooFloppyController : IOService {
     OSDeclareDefaultStructors(VoodooFloppyController);
     
 public:
+    virtual IOService *probe(IOService *provider, SInt32 *score) override;
     virtual bool start(IOService *provider) override;
     virtual void stop(IOService *provider) override;
     
-    bool initDrive(uint8_t driveNumber, uint8_t driveType);
-    bool readDrive(uint8_t driveNumber, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes);
+    bool initDrive(UInt8 driveNumber, UInt8 driveType);
+    bool readDrive(UInt8 driveNumber, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes);
     
 private:
+    // Drive types.
+    UInt8 _driveAType;
+    UInt8 _driveBType;
+    
     bool _irqTriggered;
+    IOMemoryDescriptor *_dmaMemoryDesc;
+    IOMemoryMap *_dmaMemoryMap;
+    UInt8 *_dmaBuffer;
+    
     IOCommandGate *_cmdGate;
     
     IOReturn testAction(OSObject *target, void *arg0, void *arg1, void *arg2, void *arg3);
     
     static void interruptHandler(OSObject*, void *refCon, IOService*, int);
     
-    bool waitInterrupt(uint16_t timeout);
-    void writeData(uint8_t data);
-    uint8_t readData(void);
-    void senseInterrupt(uint8_t *st0, uint8_t *cyl);
-    void setDriveData(uint8_t stepRate, uint16_t loadTime, uint8_t unloadTime, bool dma);
-    bool detectDrives(uint8_t *outTypeA, uint8_t *outTypeB);
-    uint8_t getControllerVersion(void);
+    void cleanup(void);
+    
+    bool waitInterrupt(UInt16 timeout);
+    void writeData(UInt8 data);
+    UInt8 readData(void);
+    void senseInterrupt(UInt8 *st0, UInt8 *cyl);
+    void setDriveData(UInt8 stepRate, UInt16 loadTime, UInt8 unloadTime, bool dma);
+    bool detectDrives(UInt8 *outTypeA, UInt8 *outTypeB);
+    UInt8 getControllerVersion(void);
     void resetController(void);
-    void configureController(bool eis, bool efifo, bool poll, uint8_t fifothr, uint8_t pretrk);
+    void configureController(bool eis, bool efifo, bool poll, UInt8 fifothr, UInt8 pretrk);
     
-    int8_t getMotorNum(uint8_t driveNumber);
-    bool setMotorOn(uint8_t driveNumber);
-    bool setMotorOff(uint8_t driveNumber);
+    SInt8 getMotorNum(UInt8 driveNumber);
+    bool setMotorOn(UInt8 driveNumber);
+    bool setMotorOff(UInt8 driveNumber);
     
-    void setTransferSpeed(uint8_t driveType);
-    bool recalibrate(uint8_t driveNumber);
+    void setTransferSpeed(UInt8 driveType);
+    bool recalibrate(UInt8 driveNumber);
     void setDma(bool write);
     
-    void lbaToChs(uint32_t lba, uint16_t* cyl, uint16_t* head, uint16_t* sector);
-    uint8_t parseError(uint8_t st0, uint8_t st1, uint8_t st2);
-    bool seek(uint8_t driveNumber, uint8_t track);
-    int8_t readSector(uint8_t driveNumber, uint8_t head, uint8_t track, uint8_t sector);
-    bool readSectors(uint8_t driveNumber, uint32_t sectorLba, uint8_t *outBuffer, uint32_t length);
+    void lbaToChs(UInt32 lba, UInt16* cyl, UInt16* head, UInt16* sector);
+    UInt8 parseError(UInt8 st0, UInt8 st1, UInt8 st2);
+    bool seek(UInt8 driveNumber, UInt8 track);
+    int8_t readSector(UInt8 driveNumber, UInt8 head, UInt8 track, UInt8 sector);
+    bool readSectors(UInt8 driveNumber, UInt32 sectorLba, UInt8 *outBuffer, UInt32 length);
 };
 
 #endif /* VoodooFloppyController_hpp */
