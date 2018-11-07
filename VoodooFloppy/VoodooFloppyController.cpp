@@ -98,11 +98,11 @@ bool VoodooFloppyController::start(IOService *provider) {
     _dmaBuffer = (UInt8*)_dmaMemoryMap->getAddress();
     IOLog("VoodooFloppyController: Mapped %u bytes at physical address 0x%X.\n", FLOPPY_DMALENGTH, FLOPPY_DMASTART);
     
-    readSectors(0, 0, NULL, 5);
+    //readSectors(0, 0, NULL, 5);
     
-    for (int i = 0; i < 512; i++) {
-        IOLog("0x%X ", _dmaBuffer[i]);
-    }
+   // for (int i = 0; i < 512; i++) {
+   //     IOLog("0x%X ", _dmaBuffer[i]);
+    //}
     
     /*while (true) {
         outb(FLOPPY_REG_DOR, FLOPPY_DOR_RESET | FLOPPY_DOR_IRQ_DMA | 0 | FLOPPY_DOR_MOT_DRIVE0);
@@ -160,7 +160,9 @@ bool VoodooFloppyController::readDrive(UInt8 driveNumber, IOMemoryDescriptor *bu
     
     
     //IOSleep(2000);
-    IOLog("VoodooFloppyController: done in sleep in readdirve\n");
+    //IOLog("VoodooFloppyController: done in sleep in readdirve\n");
+    readSectors(driveNumber, block, nblks, buffer);
+    
     return true;
 }
 
@@ -615,7 +617,7 @@ SInt8 VoodooFloppyController::readTrack(UInt8 driveNumber, UInt8 track) {
     return -1;
 }
 
-bool VoodooFloppyController::readSectors(UInt8 driveNumber, UInt32 sectorLba, UInt8 *outBuffer, UInt32 length) {
+bool VoodooFloppyController::readSectors(UInt8 driveNumber, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer) {
     // Ensure drive is valid.
     if (driveNumber >= 4)
         return false;
@@ -624,14 +626,11 @@ bool VoodooFloppyController::readSectors(UInt8 driveNumber, UInt32 sectorLba, UI
     setMotorOn(driveNumber);
     
     // Get each block.
-    UInt32 remainingLength = length;
+  //  UInt32 remainingLength = 0;
     UInt32 bufferOffset = 0;
     UInt16 lastTrack = -1;
     
-    // Determine number of sectors.
-    UInt32 totalSectors = DIVIDE_ROUND_UP(length, 512);
-    
-    for (UInt32 i = 0; i < totalSectors; i++) {
+    for (UInt32 i = 0; i < sectorCount; i++) {
         // Convert LBA to CHS.
         UInt16 head = 0, track = 0, sector = 1;
         lbaToChs(sectorLba, &track, &head, &sector);
@@ -648,17 +647,18 @@ bool VoodooFloppyController::readSectors(UInt8 driveNumber, UInt32 sectorLba, UI
             readTrack(driveNumber, track);
         }
         
-        UInt32 size = remainingLength;
-        if (size > 512)
-            size = 512;
+       // UInt32 size = remainingLength;
+        //if (size > 512)
+         //   size = 512;
         
         // Copy data.
         UInt32 headOffset = head == 1 ? (18 * 512) : 0;
         //memcpy(outBuffer + bufferOffset, floppyDrive->DmaBuffer + ((sector - 1) * 512) + headOffset, size);
+        buffer->writeBytes(bufferOffset, _dmaBuffer + ((sector - 1) * 512) + headOffset, 512);
         
         // Move to next sector.
         sectorLba++;
-        remainingLength -= size;
+       // remainingLength -= size;
         bufferOffset += 512;
     }
     

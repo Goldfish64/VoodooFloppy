@@ -229,7 +229,7 @@ private:
     UInt8 parseError(UInt8 st0, UInt8 st1, UInt8 st2);
     bool seek(UInt8 driveNumber, UInt8 track);
     int8_t readTrack(UInt8 driveNumber, UInt8 track);
-    bool readSectors(UInt8 driveNumber, UInt32 sectorLba, UInt8 *outBuffer, UInt32 length);
+    bool readSectors(UInt8 driveNumber, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
 };
 
 #endif /* VoodooFloppyController_hpp */

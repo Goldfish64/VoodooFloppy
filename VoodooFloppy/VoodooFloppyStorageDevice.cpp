@@ -105,6 +105,7 @@ IOReturn VoodooFloppyStorageDevice::reportWriteProtection(bool *isWriteProtected
 
 IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) {
     IOLog("VoodooFloppyStorageDevice::doAsyncReadWrite(start %llu, %llu blocks)\n", block, nblks);
-   // _controller->readDrive(0, buffer, block, nblks, attributes);
-    return kIOReturnUnsupported;
+    _controller->readDrive(0, buffer, block, nblks, attributes);
+    IOStorage::complete(completion, kIOReturnSuccess, nblks * 512);
+    return kIOReturnSuccess;
 }
