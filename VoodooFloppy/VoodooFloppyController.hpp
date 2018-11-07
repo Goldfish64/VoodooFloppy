@@ -11,10 +11,12 @@
 
 #include <IOKit/IOService.h>
 #include <IOKit/IOTypes.h>
+
+#include <IOKit/IOInterruptEventSource.h>
+#include <IOKit/IOTimerEventSource.h>
 #include <IOKit/IOCommandGate.h>
 #include <IOKit/IOMemoryDescriptor.h>
 #include <IOKit/storage/IOBlockStorageDevice.h>
-#include <IOKit/IOTimerEventSource.h>
 
 // Floppy drive IRQ.
 #define FLOPPY_IRQ  6
@@ -177,31 +179,41 @@ enum {
 #define FLOPPY_IOREG_DRIVE_NUM  "drive-id"
 #define FLOPPY_IOREG_DRIVE_TYPE "drive-type"
 
+class VoodooFloppyStorageDevice;
+
 // VoodooFloppyController class.
 class VoodooFloppyController : IOService {
     typedef IOService super;
     OSDeclareDefaultStructors(VoodooFloppyController);
     
 public:
-    virtual IOService *probe(IOService *provider, SInt32 *score) override;
-    virtual bool start(IOService *provider) override;
-    virtual void stop(IOService *provider) override;
+    virtual bool init(OSDictionary *dictionary = 0) APPLE_KEXT_OVERRIDE;
+    virtual IOService *probe(IOService *provider, SInt32 *score) APPLE_KEXT_OVERRIDE;
+    virtual bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
+    virtual void stop(IOService *provider) APPLE_KEXT_OVERRIDE;
     
     bool initDrive(UInt8 driveNumber, UInt8 driveType);
     bool readDrive(UInt8 driveNumber, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes);
     
 private:
-    // Drive types.
+    // Drives.
     UInt8 _driveAType;
     UInt8 _driveBType;
+    VoodooFloppyStorageDevice *_driveADevice;
+    VoodooFloppyStorageDevice *_driveBDevice;
     
+    // Work loop and interrupts.
+    IOWorkLoop *_workLoop;
+    IOTimerEventSource *_tmrMotorOffSource;
     bool _irqTriggered;
+    
+    // DMA buffer.
     IOMemoryDescriptor *_dmaMemoryDesc;
     IOMemoryMap *_dmaMemoryMap;
     UInt8 *_dmaBuffer;
     
-    IOWorkLoop *_workLoop;
-    IOTimerEventSource *_tmrMotorOff;
+    
+    
     
     IOCommandGate *_cmdGate;
     
@@ -210,7 +222,6 @@ private:
     static void interruptHandler(OSObject*, void *refCon, IOService*, int);
     void timerHandler(OSObject *owner, IOTimerEventSource *sender);
     
-    void cleanup(void);
     
     bool waitInterrupt(UInt16 timeout);
     void writeData(UInt8 data);
@@ -219,8 +230,7 @@ private:
     void setDriveData(UInt8 stepRate, UInt16 loadTime, UInt8 unloadTime, bool dma);
     bool detectDrives(UInt8 *outTypeA, UInt8 *outTypeB);
     UInt8 getControllerVersion(void);
-    void resetController(void);
-    void configureController(bool eis, bool efifo, bool poll, UInt8 fifothr, UInt8 pretrk);
+    void resetController();
     
     SInt8 getMotorNum(UInt8 driveNumber);
     bool setMotorOn(UInt8 driveNumber);
