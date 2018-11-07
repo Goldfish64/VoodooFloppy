@@ -29,26 +29,40 @@
 			<key>IONameMatch</key>
 			<array>
 				<string>PNP0700</string>
-                <string>PNP0701</string>
+				<string>PNP0701</string>
 			</array>
 			<key>IOProviderClass</key>
 			<string>IOACPIPlatformDevice</string>
+			<key>IOMediaIcon</key>
+			<dict>
+				<key>CFBundleIdentifier</key>
+				<string>com.apple.iokit.IOSCSIArchitectureModelFamily</string>
+				<key>IOBundleResourceFile</key>
+				<string>Floppy.icns</string>
+			</dict>
+			<key>Protocol Characteristics</key>
+			<dict>
+				<key>Physical Interconnect</key>
+				<string>Floppy</string>
+				<key>Physical Interconnect Location</key>
+				<string>Internal</string>
+			</dict>
 		</dict>
 	</dict>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2018 Goldfish64. All rights reserved.</string>
-    <key>OSBundleCompatibleVersion</key>
-    <string>${MODULE_VERSION}</string>
+	<key>OSBundleCompatibleVersion</key>
+	<string>${MODULE_VERSION}</string>
 	<key>OSBundleLibraries</key>
 	<dict>
-        <key>com.apple.iokit.IOStorageFamily</key>
-        <string>1.0</string>
+		<key>com.apple.iokit.IOStorageFamily</key>
+		<string>1.0</string>
 		<key>com.apple.kpi.iokit</key>
 		<string>10.0</string>
 		<key>com.apple.kpi.libkern</key>
 		<string>10.0</string>
 	</dict>
-    <key>OSBundleRequired</key>
-    <string>Root</string>
+	<key>OSBundleRequired</key>
+	<string>Root</string>
 </dict>
 </plist>
