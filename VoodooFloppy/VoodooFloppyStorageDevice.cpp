@@ -22,6 +22,7 @@ bool VoodooFloppyStorageDevice::attach(IOService *provider) {
     // Save reference to controller.
     _controller = (VoodooFloppyController*)provider;
     IOLog("VoodooFloppyStorageDevice: Drive number %u, type 0x%X\n", ((OSNumber*)getProperty(FLOPPY_IOREG_DRIVE_NUM))->unsigned8BitValue(), ((OSNumber*)getProperty(FLOPPY_IOREG_DRIVE_TYPE))->unsigned8BitValue());
+    _controller->initDrive(0, FLOPPY_TYPE_1440_35);
     return true;
 }
 
@@ -72,7 +73,7 @@ IOReturn VoodooFloppyStorageDevice::reportBlockSize(UInt64 *blockSize) {
 }
 
 IOReturn VoodooFloppyStorageDevice::reportEjectability(bool *isEjectable) {
-    *isEjectable = true;
+    *isEjectable = false;
     IOLog("VoodooFloppyStorageDevice::reportEjectability()\n");
     return kIOReturnSuccess;
 }
@@ -104,5 +105,6 @@ IOReturn VoodooFloppyStorageDevice::reportWriteProtection(bool *isWriteProtected
 
 IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) {
     IOLog("VoodooFloppyStorageDevice::doAsyncReadWrite(start %llu, %llu blocks)\n", block, nblks);
+   // _controller->readDrive(0, buffer, block, nblks, attributes);
     return kIOReturnUnsupported;
 }

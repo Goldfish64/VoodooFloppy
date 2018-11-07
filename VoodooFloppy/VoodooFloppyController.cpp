@@ -98,17 +98,23 @@ bool VoodooFloppyController::start(IOService *provider) {
     _dmaBuffer = (UInt8*)_dmaMemoryMap->getAddress();
     IOLog("VoodooFloppyController: Mapped %u bytes at physical address 0x%X.\n", FLOPPY_DMALENGTH, FLOPPY_DMASTART);
     
-    readSectors(0, 0, NULL, 0);
+    readSectors(0, 0, NULL, 5);
     
     for (int i = 0; i < 512; i++) {
         IOLog("0x%X ", _dmaBuffer[i]);
     }
     
-    IOLog("VoodooFloppyController: MSR: 0x%X\n", inb(FLOPPY_REG_MSR));
+    /*while (true) {
+        outb(FLOPPY_REG_DOR, FLOPPY_DOR_RESET | FLOPPY_DOR_IRQ_DMA | 0 | FLOPPY_DOR_MOT_DRIVE0);
+        IOLog("VoodooFloppyController: DIR: 0x%X\n", inb(FLOPPY_REG_DIR));
+        outb(FLOPPY_REG_DOR, FLOPPY_DOR_RESET | FLOPPY_DOR_IRQ_DMA | 0);
+        IOSleep(5000);
+    }*/
+    
     
     // Publish drive A if present.
     if (_driveAType) {
-       /* IOLog("VoodooFloppyController: Creating VoodooFloppyStorageDevice for drive A.\n");
+       IOLog("VoodooFloppyController: Creating VoodooFloppyStorageDevice for drive A.\n");
         VoodooFloppyStorageDevice *floppyDevice = OSTypeAlloc(VoodooFloppyStorageDevice);
         OSDictionary *proper = OSDictionary::withCapacity(2);
         
@@ -120,7 +126,7 @@ bool VoodooFloppyController::start(IOService *provider) {
         }
         
         floppyDevice->retain();
-        floppyDevice->registerService();*/
+        floppyDevice->registerService();
         
        // readSectors(0, 0, NULL, 0);
     }
@@ -524,6 +530,8 @@ bool VoodooFloppyController::seek(UInt8 driveNumber, UInt8 track) {
     if (driveNumber >= 4)
         return false;
     
+    IOLog("VoodooFloppyController: DIR: 0x%X\n", inb(FLOPPY_REG_DIR));
+    
     // Attempt seek.
     for (UInt8 i = 0; i < FLOPPY_CMD_RETRY_COUNT; i++) {
         // Send seek command.
@@ -554,24 +562,17 @@ bool VoodooFloppyController::seek(UInt8 driveNumber, UInt8 track) {
     return false;
 }
 
-SInt8 VoodooFloppyController::readSector(UInt8 driveNumber, UInt8 head, UInt8 track, UInt8 sector) {
+SInt8 VoodooFloppyController::readTrack(UInt8 driveNumber, UInt8 track) {
     // Set drive info (step time = 4ms, load time = 16ms, unload time = 240ms).
-    setTransferSpeed(0);
+    setTransferSpeed(0); // TODO type.
     setDriveData(0xC, 0x2, 0xF, true);
     
     for (UInt8 i = 0; i < FLOPPY_CMD_RETRY_COUNT; i++) {
         // Initialize DMA.
-       // UInt32 dmaLength = 2 * 18 * 512;
-        //floppy_dma_set(floppyDrive->DmaBuffer, dmaLength, false);
         setDma(false);
         
         // Send read command to disk to read both sides of track.
-        head = 0;
-        track = 0;
-        sector = 1;
-        driveNumber = 0;
-        IOLog("VoodooFloppyController: Attempting to read head %u track %u secont %u...\n", head, track, sector);
-        IOLog("VoodooFloppyController: got result MSR: 0x%X\n", inb(FLOPPY_REG_MSR));
+        IOLog("VoodooFloppyController: Attempting to read track %u...\n", track);
         writeData(FLOPPY_CMD_READ_DATA | FLOPPY_CMD_EXT_SKIP | FLOPPY_CMD_EXT_MFM | FLOPPY_CMD_EXT_MT);
         writeData(0 << 2 | driveNumber);
         writeData(track);     // Track.
@@ -584,29 +585,15 @@ SInt8 VoodooFloppyController::readSector(UInt8 driveNumber, UInt8 head, UInt8 tr
         
         // Wait for IRQ.
         waitInterrupt(FLOPPY_IRQ_WAIT_TIME);
-        //while (!(inb(FLOPPY_REG_MSR) & FLOPPY_MSR_RQM));
-        IOLog("VoodooFloppyController: got result MSR: 0x%X\n", inb(FLOPPY_REG_MSR));
-        
-
         
         // Get status registers.
         UInt8 st0 = readData();
         UInt8 st1 = readData();
         UInt8 st2 = readData();
-        UInt8 rTrack = readData();
-        UInt8 rHead = readData();
-        UInt8 rSector = readData();
-        UInt8 bytesPerSector = readData();
-        IOLog("VoodooFloppyController: track: %u, head: %u, sector: %u\n", rTrack, rHead, rSector);
-        IOLog("VoodooFloppyController: MSR: 0x%X\n", inb(FLOPPY_REG_MSR));
-        
-       /* if (inb(FLOPPY_REG_MSR) & FLOPPY_MSR_NON_DMA) {
-            for (int i = 0; i < 512; i++) {
-                // waitInterrupt(FLOPPY_IRQ_WAIT_TIME);
-                IOLog("0x%X ", readData());
-            }
-        }*/
-        
+        readData(); // Track.
+        readData(); // Head.
+        readData(); // Sector.
+        readData(); // Bytes per sector.
         
         // Determine errors if any.
         UInt8 error = parseError(st0, st1, st2);
@@ -642,7 +629,7 @@ bool VoodooFloppyController::readSectors(UInt8 driveNumber, UInt32 sectorLba, UI
     UInt16 lastTrack = -1;
     
     // Determine number of sectors.
-    UInt32 totalSectors = 1;// DIVIDE_ROUND_UP(length, 512); // TODO change.
+    UInt32 totalSectors = DIVIDE_ROUND_UP(length, 512);
     
     for (UInt32 i = 0; i < totalSectors; i++) {
         // Convert LBA to CHS.
@@ -658,9 +645,7 @@ bool VoodooFloppyController::readSectors(UInt8 driveNumber, UInt32 sectorLba, UI
             
             // Get track.
             lastTrack = track;
-            //readTrack(driveNumber, track);
-            readSector(driveNumber, head, track, sector);
-            
+            readTrack(driveNumber, track);
         }
         
         UInt32 size = remainingLength;
@@ -676,7 +661,6 @@ bool VoodooFloppyController::readSectors(UInt8 driveNumber, UInt32 sectorLba, UI
         remainingLength -= size;
         bufferOffset += 512;
     }
-    
     
     setMotorOff(driveNumber);
     return true;

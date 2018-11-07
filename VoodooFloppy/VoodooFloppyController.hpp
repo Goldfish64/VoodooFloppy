@@ -228,7 +228,7 @@ private:
     void lbaToChs(UInt32 lba, UInt16* cyl, UInt16* head, UInt16* sector);
     UInt8 parseError(UInt8 st0, UInt8 st1, UInt8 st2);
     bool seek(UInt8 driveNumber, UInt8 track);
-    int8_t readSector(UInt8 driveNumber, UInt8 head, UInt8 track, UInt8 sector);
+    int8_t readTrack(UInt8 driveNumber, UInt8 track);
     bool readSectors(UInt8 driveNumber, UInt32 sectorLba, UInt8 *outBuffer, UInt32 length);
 };
 

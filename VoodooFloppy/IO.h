@@ -26,4 +26,6 @@ static inline uint8_t inb(uint16_t port)
     return data;
 }
 
+#define DIVIDE_ROUND_UP(a, b) (((a - 1) / b) + 1)
+
 #endif /* IO_h */

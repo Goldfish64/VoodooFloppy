@@ -18,9 +18,6 @@ class VoodooFloppyStorageDevice : public IOBlockStorageDevice {
     typedef IOService super;
     OSDeclareDefaultStructors(VoodooFloppyStorageDevice);
     
-private:
-    VoodooFloppyController *_controller;
-    
 public:
     IOReturn doEjectMedia() override;
     IOReturn doFormatMedia(UInt64 byteCapacity) override;
@@ -39,6 +36,14 @@ public:
     
     virtual bool attach(IOService *provider) override;
     virtual void detach(IOService *provider) override;
+    
+private:
+    // Parent controller.
+    VoodooFloppyController *_controller;
+    
+    // Drive properties.
+    UInt8 _driveNumber;
+    UInt8 _driveType;
 };
 
 #endif /* VoodooFloppyStorageDevice_hpp */
