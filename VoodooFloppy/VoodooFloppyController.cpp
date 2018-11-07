@@ -98,6 +98,11 @@ bool VoodooFloppyController::start(IOService *provider) {
     _dmaBuffer = (UInt8*)_dmaMemoryMap->getAddress();
     IOLog("VoodooFloppyController: Mapped %u bytes at physical address 0x%X.\n", FLOPPY_DMALENGTH, FLOPPY_DMASTART);
     
+    // Create IOTimerEventSource for turning off the motor.
+    _workLoop = getWorkLoop();
+    _tmrMotorOff = IOTimerEventSource::timerEventSource(this, OSMemberFunctionCast(IOTimerEventSource::Action, this, &VoodooFloppyController::timerHandler));
+    _workLoop->addEventSource(_tmrMotorOff);
+    
     //readSectors(0, 0, NULL, 5);
     
    // for (int i = 0; i < 512; i++) {
@@ -179,12 +184,19 @@ void VoodooFloppyController::interruptHandler(OSObject*, void *refCon, IOService
     ((VoodooFloppyController*)refCon)->_irqTriggered = true;
 }
 
+void VoodooFloppyController::timerHandler(OSObject *owner, IOTimerEventSource *sender) {
+    setMotorOff(0);
+}
+
 void VoodooFloppyController::cleanup(void) {
     // Unregister interrupt.
     getProvider()->disableInterrupt(0);
     getProvider()->unregisterInterrupt(0);
     
     // Release DMA buffer objects.
+    if (_tmrMotorOff)
+        _workLoop->removeEventSource(_tmrMotorOff);
+    OSSafeReleaseNULL(_tmrMotorOff);
     OSSafeReleaseNULL(_dmaMemoryMap);
     OSSafeReleaseNULL(_dmaMemoryDesc);
 }
@@ -362,9 +374,17 @@ SInt8 VoodooFloppyController::getMotorNum(UInt8 driveNumber) {
 }
 
 bool VoodooFloppyController::setMotorOn(UInt8 driveNumber) {
+    // Clear timeout.
+    _tmrMotorOff->cancelTimeout();
+    
+    // Get motor number.
     SInt8 motor = getMotorNum(driveNumber);
     if (motor == -1)
         return false;
+    
+    // If motor is already on, no need to turn it on again.
+    if (inb(FLOPPY_REG_DOR) & (driveNumber | motor))
+        return true;
     
     // Turn motor on or off and wait 500ms for motor to spin up.
     outb(FLOPPY_REG_DOR, FLOPPY_DOR_RESET | FLOPPY_DOR_IRQ_DMA | driveNumber | motor);
@@ -662,6 +682,7 @@ bool VoodooFloppyController::readSectors(UInt8 driveNumber, UInt32 sectorLba, UI
         bufferOffset += 512;
     }
     
-    setMotorOff(driveNumber);
+    //setMotorOff(driveNumber);
+    _tmrMotorOff->setTimeoutMS(2000);
     return true;
 }

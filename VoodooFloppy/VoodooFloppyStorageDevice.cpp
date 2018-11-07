@@ -48,12 +48,12 @@ UInt32 VoodooFloppyStorageDevice::doGetFormatCapacities(UInt64 *capacities, UInt
 
 char *VoodooFloppyStorageDevice::getVendorString() {
     IOLog("VoodooFloppyStorageDevice::getVendorString()\n");
-    return "Generic";
+    return "";
 }
 
 char *VoodooFloppyStorageDevice::getProductString() {
     IOLog("VoodooFloppyStorageDevice::getProductString()\n");
-    return "Floppy Drive";
+    return "Floppy Disk";
 }
 
 char *VoodooFloppyStorageDevice::getRevisionString() {
@@ -80,7 +80,7 @@ IOReturn VoodooFloppyStorageDevice::reportEjectability(bool *isEjectable) {
 
 IOReturn VoodooFloppyStorageDevice::reportMaxValidBlock(UInt64 *maxBlock) {
     IOLog("VoodooFloppyStorageDevice::reportMaxValidBlock()\n");
-    *maxBlock = 2880;
+    *maxBlock = 2880 - 2;
     return kIOReturnSuccess;
 }
 

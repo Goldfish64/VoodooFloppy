@@ -14,6 +14,7 @@
 #include <IOKit/IOCommandGate.h>
 #include <IOKit/IOMemoryDescriptor.h>
 #include <IOKit/storage/IOBlockStorageDevice.h>
+#include <IOKit/IOTimerEventSource.h>
 
 // Floppy drive IRQ.
 #define FLOPPY_IRQ  6
@@ -199,11 +200,15 @@ private:
     IOMemoryMap *_dmaMemoryMap;
     UInt8 *_dmaBuffer;
     
+    IOWorkLoop *_workLoop;
+    IOTimerEventSource *_tmrMotorOff;
+    
     IOCommandGate *_cmdGate;
     
     IOReturn testAction(OSObject *target, void *arg0, void *arg1, void *arg2, void *arg3);
     
     static void interruptHandler(OSObject*, void *refCon, IOService*, int);
+    void timerHandler(OSObject *owner, IOTimerEventSource *sender);
     
     void cleanup(void);
     
