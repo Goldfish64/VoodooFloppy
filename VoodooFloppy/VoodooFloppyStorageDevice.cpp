@@ -23,6 +23,7 @@
  */
 
 #include <IOKit/IOLib.h>
+#include <IOKit/storage/IOBlockStorageDriver.h>
 
 #include "VoodooFloppyStorageDevice.hpp"
 #include "IO.h"
@@ -228,32 +229,38 @@ IOReturn VoodooFloppyStorageDevice::reportWriteProtection(bool *isWriteProtected
 
 IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) {
     IOLog("VoodooFloppyStorageDevice::doAsyncReadWrite(start %llu, %llu blocks)\n", block, nblks);
-    _controller->readDrive(0, buffer, block, nblks, attributes);
+    //_controller->readDrive(0, buffer, block, nblks, attributes);
+    
+    IOReturn status = _controller->readSectors(this, block, nblks, buffer);
+    if (status != kIOReturnSuccess)
+        return status;
     IOStorage::complete(completion, kIOReturnSuccess, nblks * 512);
     return kIOReturnSuccess;
 }
 
+
+
 bool VoodooFloppyStorageDevice::probeMedia() {
     DBGLOG("VoodooFloppyStorageDevice::probeMedia()\n");
+    bool newMediaPresent = true;
     
     // Try to calibrate.
-    
     _mediaPresent = false;
-    if (_controller->recalibrate() != kIOReturnSuccess) {
-        _mediaPresent = false;
-    messageClients(kIOMessageMediaParametersHaveChanged);
-        return false;
-}
-    
-    // Try to read track.
-    IOReturn status = _controller->readTrack(0);
-    if (status == kIOReturnNoMedia) {
-        _mediaPresent = false;
-        messageClients(kIOMessageMediaParametersHaveChanged);
-        return false;
+    if (_controller->recalibrate() != kIOReturnSuccess)
+        newMediaPresent = false;
+    else {
+        // Try to read track.
+        if (_controller->readTrack(0) != kIOReturnSuccess)
+            newMediaPresent = false;
     }
-    
-    return true;
+
+    // Did the media state change?
+    if (newMediaPresent != _mediaPresent) {
+        IOMediaState mediaState = newMediaPresent ? kIOMediaStateOnline : kIOMediaStateOffline;
+        messageClients(kIOMessageMediaStateHasChanged, &mediaState);
+    }
+    _mediaPresent = newMediaPresent;
+    return newMediaPresent;
 }
 
 

@@ -230,6 +230,7 @@ public:
     IOReturn recalibrate();
     IOReturn seek(UInt8 track);
     IOReturn readTrack(UInt8 track);
+    IOReturn readSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
     
 private:
     // Drives.
@@ -285,7 +286,7 @@ private:
     IOReturn parseError(UInt8 st0, UInt8 st1, UInt8 st2);
     
     
-    bool readSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
+    
 };
 
 #endif /* VoodooFloppyController_hpp */

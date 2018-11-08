@@ -189,22 +189,6 @@ bool VoodooFloppyController::start(IOService *provider) {
         _driveADevice->retain();
         _driveADevice->registerService();
     }
-
-    IOLog("VoodooFloppy: DIR 0x%X\n", inb(FLOPPY_REG_DIR));
-    
-    while(true) {
-        outb(FLOPPY_REG_DOR, FLOPPY_DOR_RESET | FLOPPY_DOR_IRQ_DMA | 0 | 0x10);
-        UInt8 dir = inb(FLOPPY_REG_DIR);
-        outb(FLOPPY_REG_DOR, FLOPPY_DOR_RESET | FLOPPY_DOR_IRQ_DMA);
-        IOLog("VoodooFloppy: DIR 0x%X\n", dir);
-        //outb(FLOPPY_REG_DIR, dir & (~0x80));
-        
-        //seek(10);
-        //seek(50);
-        _driveADevice->probeMedia();
-        
-        IOSleep(5000);
-    }
     
     // Kext started successfully.
     return true;
@@ -263,12 +247,15 @@ bool VoodooFloppyController::readDrive(UInt8 driveNumber, IOMemoryDescriptor *bu
     
     //IOSleep(2000);
     //IOLog("VoodooFloppyController: done in sleep in readdirve\n");
-    readSectors(_driveADevice, block, nblks, buffer);
+    
     
     return true;
 }
 
 void VoodooFloppyController::selectDrive(VoodooFloppyStorageDevice *floppyDevice) {
+    if (_currentDevice == floppyDevice)
+        return;
+    
     // Set current drive.
     _currentDevice = floppyDevice;
     
@@ -868,9 +855,11 @@ done:
     return result;
 }
 
-bool VoodooFloppyController::readSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer) {
+IOReturn VoodooFloppyController::readSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer) {
     // Get each block.
   //  UInt32 remainingLength = 0;
+    selectDrive(floppyDevice);
+    
     UInt32 bufferOffset = 0;
     static UInt16 lastTrack = -1;
     
@@ -881,14 +870,15 @@ bool VoodooFloppyController::readSectors(VoodooFloppyStorageDevice *floppyDevice
         
         // Have we changed tracks?.
         if (lastTrack != track) {
-            if (lastTrack != track && !seek(track)) {
-                setMotorOff();
-                return false;
-            }
+            IOReturn status = seek(track);
+            if (status != kIOReturnSuccess)
+                return status;
             
             // Get track.
+            status = readTrack(track);
+            if (status != kIOReturnSuccess)
+                return status;
             lastTrack = track;
-            readTrack(track);
         }
         
        // UInt32 size = remainingLength;
@@ -906,5 +896,5 @@ bool VoodooFloppyController::readSectors(VoodooFloppyStorageDevice *floppyDevice
         bufferOffset += 512;
     }
     
-    return true;
+    return kIOReturnSuccess;
 }
