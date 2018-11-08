@@ -119,9 +119,9 @@ bool VoodooFloppyController::start(IOService *provider) {
         goto fail;
     }
     
-    // Print version and reset controller once more.
+    // Print version and configure controller.
     IOLog("VoodooFloppyController: Version: 0x%X.\n", version);
-    resetController();
+    configureController();
     
     // Create descriptor for DMA buffer.
     _dmaMemoryDesc = IOMemoryDescriptor::withPhysicalAddress(FLOPPY_DMASTART, FLOPPY_DMALENGTH, kIODirectionInOut);
@@ -177,7 +177,6 @@ bool VoodooFloppyController::start(IOService *provider) {
         
         OSDictionary *proper = OSDictionary::withCapacity(2);
         
-        
         proper->setObject(kFloppyPropertyDriveIdKey, OSNumber::withNumber((UInt8)0, 8));
         proper->setObject(FLOPPY_IOREG_DRIVE_TYPE, OSNumber::withNumber(_driveAType, 8));
         if (!_driveADevice || !_driveADevice->init(proper) || !_driveADevice->attach(this)) {
@@ -189,6 +188,22 @@ bool VoodooFloppyController::start(IOService *provider) {
         
         _driveADevice->retain();
         _driveADevice->registerService();
+    }
+
+    IOLog("VoodooFloppy: DIR 0x%X\n", inb(FLOPPY_REG_DIR));
+    
+    while(true) {
+        outb(FLOPPY_REG_DOR, FLOPPY_DOR_RESET | FLOPPY_DOR_IRQ_DMA | 0 | 0x10);
+        UInt8 dir = inb(FLOPPY_REG_DIR);
+        outb(FLOPPY_REG_DOR, FLOPPY_DOR_RESET | FLOPPY_DOR_IRQ_DMA);
+        IOLog("VoodooFloppy: DIR 0x%X\n", dir);
+        //outb(FLOPPY_REG_DIR, dir & (~0x80));
+        
+        //seek(10);
+        //seek(50);
+        _driveADevice->probeMedia();
+        
+        IOSleep(5000);
     }
     
     // Kext started successfully.
@@ -253,6 +268,24 @@ bool VoodooFloppyController::readDrive(UInt8 driveNumber, IOMemoryDescriptor *bu
     return true;
 }
 
+void VoodooFloppyController::selectDrive(VoodooFloppyStorageDevice *floppyDevice) {
+    // Set current drive.
+    _currentDevice = floppyDevice;
+    
+    // Determine speed.
+    UInt8 speed = FLOPPY_SPEED_500KBPS;
+    switch (0) {
+            // TODO
+    }
+    
+    // Write speed to CCR.
+    outb(FLOPPY_REG_CCR, speed & 0x3);
+    setDriveData(0xC, 0x2, 0xF, true);
+    
+    // Recalibrate drive.
+    recalibrate();
+}
+
 
 /*
  *
@@ -305,16 +338,17 @@ bool VoodooFloppyController::waitInterrupt(UInt16 timeout) {
  * Write a byte to the floppy controller
  * @param data The byte to write.
  */
-void VoodooFloppyController::writeData(UInt8 data) {
+bool VoodooFloppyController::writeData(UInt8 data) {
     for (UInt16 i = 0; i < FLOPPY_IRQ_WAIT_TIME; i++) {
         // Wait until register is ready.
         if (inb(FLOPPY_REG_MSR) & FLOPPY_MSR_RQM) {
             outb(FLOPPY_REG_FIFO, data);
-            return;
+            return true;
         }
         IOSleep(10);
     }
-    IOLog("VoodooFloppyController: Data timeout!\n");
+    DBGLOG("VoodooFloppyController: Data timeout!\n");
+    return false;
 }
 
 /**
@@ -328,8 +362,8 @@ UInt8 VoodooFloppyController::readData(void) {
             return inb(FLOPPY_REG_FIFO);
         IOSleep(10);
     }
-    IOLog("VoodooFloppyController: Data timeout!\n");
-    return 0;
+    DBGLOG("VoodooFloppyController: Data timeout!\n");
+    return 0xFF;
 }
 
 /**
@@ -393,11 +427,8 @@ UInt8 VoodooFloppyController::getControllerVersion() {
     return readData();
 }
 
-/**
- * Resets the floppy controller.
- */
-void VoodooFloppyController::resetController() {
-    DBGLOG("VoodooFloppyController: resetController()\n");
+void VoodooFloppyController::configureController() {
+    DBGLOG("VoodooFloppyController::configureController()\n");
     
     // Send configure command.
     writeData(FLOPPY_CMD_CONFIGURE);
@@ -409,6 +440,16 @@ void VoodooFloppyController::resetController() {
     // Lock configuration.
     writeData(FLOPPY_CMD_LOCK);
     
+    // Reset controller.
+    resetController();
+}
+
+/**
+ * Resets the floppy controller.
+ */
+void VoodooFloppyController::resetController() {
+    DBGLOG("VoodooFloppyController::resetController()\n");
+    
     // Disable and re-enable floppy controller.
     outb(FLOPPY_REG_DOR, 0x00);
     outb(FLOPPY_REG_DOR, FLOPPY_DOR_IRQ_DMA | FLOPPY_DOR_RESET);
@@ -416,8 +457,27 @@ void VoodooFloppyController::resetController() {
     
     // Clear any interrupts on drives.
     UInt8 st0, cyl;
-    for(int i = 0; i < 4; i++)
+    for (int i = 0; i < 4; i++)
         senseInterrupt(&st0, &cyl);
+}
+
+bool VoodooFloppyController::isControllerReady() {
+    DBGLOG("VoodooFloppyController::isControllerReady()\n");
+    
+    // Ensure we can send a command and that no operations are in progress.
+    bool result = (inb(FLOPPY_REG_MSR) & (FLOPPY_MSR_RQM | FLOPPY_MSR_DIO)) == FLOPPY_MSR_RQM;
+    
+    // If controller is not ready, reset and try again.
+    // If it's still not ready, fail.
+    if (!result) {
+        DBGLOG("VoodooFloppyController::isControllerReady(): not ready\n");
+        resetController();
+        if ((inb(FLOPPY_REG_MSR) & (FLOPPY_MSR_RQM | FLOPPY_MSR_DIO)) != FLOPPY_MSR_RQM)
+            return false;
+    }
+    
+    // Controller is ready.
+    return true;
 }
 
 SInt8 VoodooFloppyController::getMotorNum(UInt8 driveNumber) {
@@ -485,40 +545,7 @@ void VoodooFloppyController::setTransferSpeed(UInt8 driveType) {
     outb(FLOPPY_REG_CCR, speed & 0x3);
 }
 
-/**
- * Recalibrates a drive.
- * @param driveNumber    The drive to recalibrate.
- */
-bool VoodooFloppyController::recalibrate() {
-    UInt8 driveNumber = _currentDevice->getDriveNumber();
-    DBGLOG("VoodooFloppyController::recalibrate(%u)\n", driveNumber);
-    UInt8 st0, cyl;
-    if (driveNumber >= 4)
-        return false;
-    
-    // Turn on motor and attempt to calibrate.
-    setMotorOn();
-    for (UInt8 i = 0; i < FLOPPY_CMD_RETRY_COUNT; i++)
-    {
-        // Send calibrate command.
-        writeData(FLOPPY_CMD_RECALIBRATE);
-        writeData(driveNumber);
-        waitInterrupt(FLOPPY_IRQ_WAIT_TIME);
-        senseInterrupt(&st0, &cyl);
-        
-        // If current cylinder is zero, we are done.
-        IOSleep(500);
-        if (!cyl) {
-            _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
-            return true;
-        }
-    }
-    
-    // If we got here, calibration failed.
-    _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
-    IOLog("VoodooFloppyController: Calibration of drive %u failed!\n", driveNumber);
-    return false;
-}
+
 
 void VoodooFloppyController::setDma(bool write) {
     // Determine address and length of buffer.
@@ -563,78 +590,180 @@ void VoodooFloppyController::lbaToChs(UInt32 lba, UInt16* cyl, UInt16* head, UIn
 }
 
 // Parse and print errors.
-UInt8 VoodooFloppyController::parseError(UInt8 st0, UInt8 st1, UInt8 st2) {
+IOReturn VoodooFloppyController::parseError(UInt8 st0, UInt8 st1, UInt8 st2) {
     if (st0 & FLOPPY_ST0_INTERRUPT_CODE || st1 > 0 || st2 > 0)
-        IOLog("VoodooFloppyController: Error status ST0: 0x%X  ST1: 0x%X  ST2: 0x%X\n", st0, st1, st2);
+        DBGLOG("VoodooFloppyController: Error status ST0: 0x%X  ST1: 0x%X  ST2: 0x%X\n", st0, st1, st2);
     
-    UInt8 error = 0;
+    IOReturn error = kIOReturnSuccess;
     if (st0 & FLOPPY_ST0_INTERRUPT_CODE) {
         static const char *status[] = { 0, "command did not complete", "invalid command", "polling error" };
-        IOLog("An error occurred while getting the sector: %s.\n", status[st0 >> 6]);
-        error = 1;
+        DBGLOG("VoodooFloppyController: An error occurred while getting the sector: %s.\n", status[st0 >> 6]);
+        error = kIOReturnIOError;
     }
     if (st0 & FLOPPY_ST0_FAIL) {
-        IOLog("Drive not ready.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: Drive not ready.\n");
+        error = kIOReturnNotReady;
     }
     if (st1 & FLOPPY_ST1_MISSING_ADDR_MARK || st2 & FLOPPY_ST2_MISSING_DATA_MARK) {
-        IOLog("Missing address mark.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: Missing address mark.\n");
+        error = kIOReturnIOError;
     }
     if (st1 & FLOPPY_ST1_NOT_WRITABLE) {
-        IOLog("Disk is write-protected.\n");
-        error = 2;
+        DBGLOG("VoodooFloppyController: Disk is write-protected.\n");
+        error = kIOReturnNotWritable;
     }
     if (st1 & FLOPPY_ST1_NO_DATA) {
-        IOLog("Sector not found.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: Sector not found.\n");
+        error = kIOReturnIOError;
     }
     if (st1 & FLOPPY_ST1_OVERRUN_UNDERRUN) {
-        IOLog("Buffer overrun/underrun.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: Buffer overrun/underrun.\n");
+        error = kIOReturnIOError;
     }
     if (st1 & FLOPPY_ST1_DATA_ERROR) {
-        IOLog("CRC error.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: CRC error.\n");
+        error = kIOReturnIOError;
     }
     if (st1 & FLOPPY_ST1_END_OF_CYLINDER) {
-        IOLog("End of track.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: End of track.\n");
+        error = kIOReturnIOError;
     }
     if (st2 & FLOPPY_ST2_BAD_CYLINDER) {
-        IOLog("Bad track.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: Bad track.\n");
+        error = kIOReturnIOError;
     }
     if (st2 & FLOPPY_ST2_WRONG_CYLINDER) {
-        IOLog("Wrong track.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: Wrong track.\n");
+        error = kIOReturnIOError;
     }
     if (st2 & FLOPPY_ST2_DATA_ERROR_IN_FIELD) {
-        IOLog("CRC error in data.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: CRC error in data.\n");
+        error = kIOReturnIOError;
     }
     if (st2 & FLOPPY_ST2_CONTROL_MARK) {
-        IOLog("Deleted address mark.\n");
-        error = 1;
+        DBGLOG("VoodooFloppyController: Deleted address mark.\n");
+        error = kIOReturnIOError;
     }
     
     return error;
 }
 
-// Seek to specified track.
-bool VoodooFloppyController::seek(VoodooFloppyStorageDevice *floppyDevice, UInt8 track) {
-    DBGLOG("VoodooFloppyController::seek(%u)\n", track);
+IOReturn VoodooFloppyController::checkForMedia(bool *mediaPresent, UInt8 currentTrack) {
+    DBGLOG("VoodooFloppyController::checkForMedia()\n");
     
-    // Turn on motor.
-    if (!setMotorOn())
-        return false;
+    // If the disk change bit is set, seek to some track and attempt re-calibration.
+    // Only a successful seek/calibrate that actually did something can clear the bit.
+    // We only want to try this once, because if the bit is still set after seeks,
+    // there probably isn't media in the drive.
+    IOReturn result = kIOReturnSuccess;
+    *mediaPresent = true;
+    if (inb(FLOPPY_REG_DIR) & kFloppyDirDskChg) {
+        DBGLOG("VoodooFloppyController::checkForMedia(): no media, attempting clear.\n");
+        *mediaPresent = false;
+        
+        // Recalibrate.
+        result = recalibrate();
+        if (result != kIOReturnSuccess)
+            return result;
+        
+        // Seek back to where we were.
+        result = seek(currentTrack);
+        if (result != kIOReturnSuccess)
+            return result;
+        
+        // If bit is still set, no media is present.
+        if (inb(FLOPPY_REG_DIR) & kFloppyDirDskChg)
+            result = kIOReturnNoMedia;
+    }
+    
+    return result;
+}
+
+/**
+ * Recalibrates a drive.
+ * @param driveNumber    The drive to recalibrate.
+ */
+IOReturn VoodooFloppyController::recalibrate() {
+    DBGLOG("VoodooFloppyController::recalibrate()\n");
+    IOReturn result = kIOReturnSuccess;
+    UInt8 st0, cyl = 0;
+    bool seekCleared = false;
+    
+    // Attempt to calibrate.
+    for (UInt8 i = 0; i < FLOPPY_CMD_RETRY_COUNT; i++) {
+        // Make sure we are ready.
+        if (!isControllerReady()) {
+            result = kIOReturnNotReady;
+            goto done;
+        }
+        
+        // Turn on motor.
+        if (!setMotorOn()) {
+            result = kIOReturnNotPermitted;
+            goto done;
+        }
+        
+        // Send calibrate command.
+        writeData(FLOPPY_CMD_RECALIBRATE);
+        writeData(_currentDevice->getDriveNumber());
+        waitInterrupt(FLOPPY_IRQ_WAIT_TIME);
+        senseInterrupt(&st0, &cyl);
+        
+        // If the disk change bit is set, seek to some track and attempt re-calibration.
+        // Only a successful seek/calibrate that actually did something can clear the bit.
+        // We only want to try this once, because if the bit is still set after seeks,
+        // there probably isn't media in the drive.
+        if (inb(FLOPPY_REG_DIR) & kFloppyDirDskChg) {
+            if (!seekCleared) {
+                DBGLOG("VoodooFloppyController::recalibrate(): no media, attempting clear.\n");
+                seek(10);
+                seekCleared = true;
+                continue;
+            } else {
+                result = kIOReturnNoMedia;
+                goto done;
+            }
+        }
+        
+        // If current cylinder is zero, we are done.
+        if (!cyl) {
+            result = kIOReturnSuccess;
+            goto done;
+        }
+    }
+    
+    // Calibrate failed if we get here.
+    DBGLOG("VoodooFloppyController::recalibrate(): fail.\n");
+    result = kIOReturnIOError;
+    
+done:
+    _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
+    return result;
+}
+
+// Seek to specified track.
+IOReturn VoodooFloppyController::seek(UInt8 track) {
+    DBGLOG("VoodooFloppyController::seek(%u)\n", track);
+    IOReturn result = kIOReturnSuccess;
+    UInt8 st0, cyl = 0;
     
     // Attempt seek.
-    UInt8 st0, cyl = 0;
     for (UInt8 i = 0; i < FLOPPY_CMD_RETRY_COUNT; i++) {
+        // Make sure we are ready.
+        if (!isControllerReady()) {
+            result = kIOReturnNotReady;
+            goto done;
+        }
+        
+        // Turn on motor.
+        if (!setMotorOn()) {
+            result = kIOReturnNotPermitted;
+            goto done;
+        }
+        
         // Send seek command.
         writeData(FLOPPY_CMD_SEEK);
-        writeData((0 << 2) | floppyDevice->getDriveNumber()); // Head 0, drive.
+        writeData((0 << 2) | _currentDevice->getDriveNumber()); // Head 0, drive.
         writeData(track);
         
         // Wait for response and check interrupt.
@@ -642,36 +771,58 @@ bool VoodooFloppyController::seek(VoodooFloppyStorageDevice *floppyDevice, UInt8
         senseInterrupt(&st0, &cyl);
         
         // Ensure command completed successfully.
-        if (st0 & FLOPPY_ST0_INTERRUPT_CODE) {
-            IOLog("VoodooFloppyController: Error executing floppy seek command!\n");
+        if (st0 & FLOPPY_ST0_INTERRUPT_CODE)
             continue;
-        }
         
         // If we have reached the requested track, return.
         if (cyl == track) {
-            //IOSleep(500);
-            return true;
+            result = kIOReturnSuccess;
+            goto done;
         }
     }
     
     // Seek failed if we get here.
-    IOLog("VoodooFloppyController: Seek failed for %u on drive %u!\n", track, floppyDevice->getDriveNumber());
-    return false;
+    DBGLOG("VoodooFloppyController::seek(%u): fail.\n", track);
+    result = kIOReturnIOError;
+    
+done:
+    _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
+    return result;
 }
 
-SInt8 VoodooFloppyController::readTrack(VoodooFloppyStorageDevice *floppyDevice, UInt8 track) {
-    // Set drive info (step time = 4ms, load time = 16ms, unload time = 240ms).
-    setTransferSpeed(0); // TODO type.
-    setDriveData(0xC, 0x2, 0xF, true);
+IOReturn VoodooFloppyController::readTrack(UInt8 track) {
+    DBGLOG("VoodooFloppyController::readTrack(%u)\n", track);
+    IOReturn result = kIOReturnSuccess;
+    bool mediaPresent = false;
     
     for (UInt8 i = 0; i < FLOPPY_CMD_RETRY_COUNT; i++) {
+        // Make sure we are ready.
+        if (!isControllerReady()) {
+            result = kIOReturnNotReady;
+            goto done;
+        }
+        
+        // Turn on motor.
+        if (!setMotorOn()) {
+            result = kIOReturnNotPermitted;
+            goto done;
+        }
+        
+        // Check for media.
+        result = checkForMedia(&mediaPresent, track);
+        if (result != kIOReturnSuccess)
+            goto done;
+        
+        // Set drive info (step time = 4ms, load time = 16ms, unload time = 240ms).
+        setTransferSpeed(0); // TODO type.
+        setDriveData(0xC, 0x2, 0xF, true);
+        
         // Initialize DMA.
         setDma(false);
         
         // Send read command to disk to read both sides of track.
-        IOLog("VoodooFloppyController: Attempting to read track %u...\n", track);
         writeData(FLOPPY_CMD_READ_DATA | FLOPPY_CMD_EXT_SKIP | FLOPPY_CMD_EXT_MFM | FLOPPY_CMD_EXT_MT);
-        writeData(0 << 2 | floppyDevice->getDriveNumber());
+        writeData(0 << 2 | _currentDevice->getDriveNumber());
         writeData(track);     // Track.
         writeData(0);         // Head 0.
         writeData(1);        // Start at sector 1.
@@ -683,6 +834,13 @@ SInt8 VoodooFloppyController::readTrack(VoodooFloppyStorageDevice *floppyDevice,
         // Wait for IRQ.
         waitInterrupt(FLOPPY_IRQ_WAIT_TIME);
         
+        // Check for media. If media was not present before, try the read again.
+        result = checkForMedia(&mediaPresent, track);
+        if (result != kIOReturnSuccess)
+            goto done;
+        if (!mediaPresent)
+            continue;
+        
         // Get status registers.
         UInt8 st0 = readData();
         UInt8 st1 = readData();
@@ -693,30 +851,24 @@ SInt8 VoodooFloppyController::readTrack(VoodooFloppyStorageDevice *floppyDevice,
         readData(); // Bytes per sector.
         
         // Determine errors if any.
-        UInt8 error = parseError(st0, st1, st2);
+        result = parseError(st0, st1, st2);
         
         // If no error, we are done.
-        if (!error) {
-            return 0;
-        }
-        else if (error > 1) {
-            IOLog("VoodooFloppyController: Not retrying...\n");
-            return 2;
-        }
-        
+        if (result == kIOReturnSuccess)
+            goto done;
         IOSleep(100);
     }
     
     // Failed.
-    IOLog("VoodooFloppyController: Get track failed!\n");
-    return -1;
+    DBGLOG("VoodooFloppyController::readTrack(%u): fail.\n", track);
+    result = kIOReturnIOError;
+    
+done:
+    _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
+    return result;
 }
 
 bool VoodooFloppyController::readSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer) {
-    // Turn on motor.
-    if (!setMotorOn())
-        return false;
-    
     // Get each block.
   //  UInt32 remainingLength = 0;
     UInt32 bufferOffset = 0;
@@ -729,14 +881,14 @@ bool VoodooFloppyController::readSectors(VoodooFloppyStorageDevice *floppyDevice
         
         // Have we changed tracks?.
         if (lastTrack != track) {
-            if (lastTrack != track && !seek(floppyDevice, track)) {
+            if (lastTrack != track && !seek(track)) {
                 setMotorOff();
                 return false;
             }
             
             // Get track.
             lastTrack = track;
-            readTrack(floppyDevice, track);
+            readTrack(track);
         }
         
        // UInt32 size = remainingLength;
@@ -754,6 +906,5 @@ bool VoodooFloppyController::readSectors(VoodooFloppyStorageDevice *floppyDevice
         bufferOffset += 512;
     }
     
-    _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
     return true;
 }

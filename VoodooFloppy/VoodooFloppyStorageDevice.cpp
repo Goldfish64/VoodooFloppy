@@ -25,6 +25,7 @@
 #include <IOKit/IOLib.h>
 
 #include "VoodooFloppyStorageDevice.hpp"
+#include "IO.h"
 
 // This required macro defines the class's constructors, destructors,
 // and several other methods I/O Kit requires.
@@ -45,7 +46,9 @@ bool VoodooFloppyStorageDevice::attach(IOService *provider) {
     // Save reference to controller.
     _controller = (VoodooFloppyController*)provider;
     DBGLOG("VoodooFloppyStorageDevice: Drive number %u, type 0x%X\n", ((OSNumber*)getProperty(kFloppyPropertyDriveIdKey))->unsigned8BitValue(), ((OSNumber*)getProperty(FLOPPY_IOREG_DRIVE_TYPE))->unsigned8BitValue());
-    _controller->initDrive(0, FLOPPY_TYPE_1440_35);
+    
+    probeMedia();
+    //_controller->initDrive(0, FLOPPY_TYPE_1440_35);
     return true;
 }
 
@@ -229,6 +232,30 @@ IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer,
     IOStorage::complete(completion, kIOReturnSuccess, nblks * 512);
     return kIOReturnSuccess;
 }
+
+bool VoodooFloppyStorageDevice::probeMedia() {
+    DBGLOG("VoodooFloppyStorageDevice::probeMedia()\n");
+    
+    // Try to calibrate.
+    
+    _mediaPresent = false;
+    if (_controller->recalibrate() != kIOReturnSuccess) {
+        _mediaPresent = false;
+    messageClients(kIOMessageMediaParametersHaveChanged);
+        return false;
+}
+    
+    // Try to read track.
+    IOReturn status = _controller->readTrack(0);
+    if (status == kIOReturnNoMedia) {
+        _mediaPresent = false;
+        messageClients(kIOMessageMediaParametersHaveChanged);
+        return false;
+    }
+    
+    return true;
+}
+
 
 /*!
  * @function getDriveNumber

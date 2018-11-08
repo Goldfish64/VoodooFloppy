@@ -184,13 +184,17 @@ enum {
     FLOPPY_GAP3_3_5         = 0x1B
 };
 
+
+// DIR values.
+#define kFloppyDirDskChg    0x80
+
 // Floppy data rates.
 #define FLOPPY_SPEED_500KBPS    0x0
 #define FLOPPY_SPEED_300KBPS    0x1
 #define FLOPPY_SPEED_250KBPS    0x2
 #define FLOPPY_SPEED_1MBPS      0x3
 
-#define FLOPPY_CMD_RETRY_COUNT  10
+#define FLOPPY_CMD_RETRY_COUNT  5
 #define FLOPPY_IRQ_WAIT_TIME    500
 #define FLOPPY_DMASTART  0x500
 #define FLOPPY_DMALENGTH 0x4800
@@ -221,6 +225,12 @@ public:
     bool initDrive(UInt8 driveNumber, UInt8 driveType);
     bool readDrive(UInt8 driveNumber, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes);
     
+    void selectDrive(VoodooFloppyStorageDevice *floppyDevice);
+    IOReturn checkForMedia(bool *mediaPresent, UInt8 currentTrack = 0);
+    IOReturn recalibrate();
+    IOReturn seek(UInt8 track);
+    IOReturn readTrack(UInt8 track);
+    
 private:
     // Drives.
     UInt8 _driveAType;
@@ -250,26 +260,31 @@ private:
     
     
     bool waitInterrupt(UInt16 timeout);
-    void writeData(UInt8 data);
+    bool writeData(UInt8 data);
     UInt8 readData(void);
     void senseInterrupt(UInt8 *st0, UInt8 *cyl);
     void setDriveData(UInt8 stepRate, UInt16 loadTime, UInt8 unloadTime, bool dma);
     bool detectDrives(UInt8 *outTypeA, UInt8 *outTypeB);
     UInt8 getControllerVersion();
+    void configureController();
     void resetController();
+    
+    bool isControllerReady();
     
     SInt8 getMotorNum(UInt8 driveNumber);
     bool setMotorOn();
     bool setMotorOff();
     
     void setTransferSpeed(UInt8 driveType);
-    bool recalibrate();
+    
     void setDma(bool write);
     
+    
+    
     void lbaToChs(UInt32 lba, UInt16* cyl, UInt16* head, UInt16* sector);
-    UInt8 parseError(UInt8 st0, UInt8 st1, UInt8 st2);
-    bool seek(VoodooFloppyStorageDevice *floppyDevice, UInt8 track);
-    int8_t readTrack(VoodooFloppyStorageDevice *floppyDevice, UInt8 track);
+    IOReturn parseError(UInt8 st0, UInt8 st1, UInt8 st2);
+    
+    
     bool readSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
 };
 

@@ -58,7 +58,10 @@ public:
     IOReturn doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) APPLE_KEXT_OVERRIDE;
     
     // Floppy functions.
+    bool probeMedia();
+    
     UInt8 getDriveNumber();
+    UInt8 getDataRate();
     
 private:
     // Parent controller.
@@ -67,6 +70,8 @@ private:
     // Drive properties.
     UInt8 _driveNumber;
     UInt8 _driveType;
+    
+    UInt8 _dataRate;
     
     bool _mediaPresent;
     bool _writeProtected;
