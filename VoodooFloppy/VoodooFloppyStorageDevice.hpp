@@ -13,29 +13,33 @@
 #include <IOKit/storage/IOBlockStorageDevice.h>
 #include "VoodooFloppyController.hpp"
 
+#define kFloppyDeviceProductString "Floppy Disk"
+
 // VoodooFloppyStorageDevice class.
 class VoodooFloppyStorageDevice : public IOBlockStorageDevice {
     typedef IOService super;
     OSDeclareDefaultStructors(VoodooFloppyStorageDevice);
     
 public:
-    IOReturn doEjectMedia() override;
-    IOReturn doFormatMedia(UInt64 byteCapacity) override;
-    UInt32 doGetFormatCapacities(UInt64 *capacities, UInt32 capacitiesMaxCount) const override;
-    char *getVendorString() override;
-    char *getProductString() override;
-    char *getRevisionString() override;
-    char *getAdditionalDeviceInfoString() override;
-    IOReturn reportBlockSize(UInt64 *blockSize) override;
-    IOReturn reportEjectability(bool *isEjectable) override;
-    IOReturn reportMaxValidBlock(UInt64 *maxBlock) override;
-    IOReturn reportMediaState(bool *mediaPresent, bool *changedState = 0) override;
-    IOReturn reportRemovability(bool *isRemovable) override;
-    IOReturn reportWriteProtection(bool *isWriteProtected) override;
-    IOReturn doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) override;
+    virtual bool attach(IOService *provider) APPLE_KEXT_OVERRIDE;
+    virtual void detach(IOService *provider) APPLE_KEXT_OVERRIDE;
     
-    virtual bool attach(IOService *provider) override;
-    virtual void detach(IOService *provider) override;
+    IOReturn doEjectMedia() APPLE_KEXT_OVERRIDE;
+    IOReturn doFormatMedia(UInt64 byteCapacity) APPLE_KEXT_OVERRIDE;
+    UInt32 doGetFormatCapacities(UInt64 *capacities, UInt32 capacitiesMaxCount) const APPLE_KEXT_OVERRIDE;
+    char *getVendorString() APPLE_KEXT_OVERRIDE;
+    char *getProductString() APPLE_KEXT_OVERRIDE;
+    char *getRevisionString() APPLE_KEXT_OVERRIDE;
+    char *getAdditionalDeviceInfoString() APPLE_KEXT_OVERRIDE;
+    IOReturn reportBlockSize(UInt64 *blockSize) APPLE_KEXT_OVERRIDE;
+    IOReturn reportEjectability(bool *isEjectable) APPLE_KEXT_OVERRIDE;
+    IOReturn reportMaxValidBlock(UInt64 *maxBlock) APPLE_KEXT_OVERRIDE;
+    IOReturn reportMediaState(bool *mediaPresent, bool *changedState = 0) APPLE_KEXT_OVERRIDE;
+    IOReturn reportRemovability(bool *isRemovable) APPLE_KEXT_OVERRIDE;
+    IOReturn reportWriteProtection(bool *isWriteProtected) APPLE_KEXT_OVERRIDE;
+    IOReturn doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) APPLE_KEXT_OVERRIDE;
+    
+    
     
 private:
     // Parent controller.
@@ -44,6 +48,7 @@ private:
     // Drive properties.
     UInt8 _driveNumber;
     UInt8 _driveType;
+    
 };
 
 #endif /* VoodooFloppyStorageDevice_hpp */

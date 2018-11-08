@@ -145,8 +145,8 @@ bool VoodooFloppyController::start(IOService *provider) {
         _driveADevice = OSTypeAlloc(VoodooFloppyStorageDevice);
         OSDictionary *proper = OSDictionary::withCapacity(2);
         
-        proper->setObject(FLOPPY_IOREG_DRIVE_NUM, OSNumber::withNumber((UInt8)0, 8));
-        proper->setObject(FLOPPY_IOREG_DRIVE_TYPE, OSNumber::withNumber(FLOPPY_TYPE_1440_35, 8));
+        proper->setObject(kFloppyPropertyDriveIdKey, OSNumber::withNumber((UInt8)0, 8));
+        proper->setObject(FLOPPY_IOREG_DRIVE_TYPE, OSNumber::withNumber(_driveAType, 8));
         if (!_driveADevice || !_driveADevice->init(proper) || !_driveADevice->attach(this)) {
             IOLog("VoodooFloppyController: Failed to create VoodooFloppyStorageDevice.\n");
             goto fail;

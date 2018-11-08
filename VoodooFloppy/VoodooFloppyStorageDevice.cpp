@@ -13,6 +13,7 @@
 // This required macro defines the class's constructors, destructors,
 // and several other methods I/O Kit requires.
 OSDefineMetaClassAndStructors(VoodooFloppyStorageDevice, IOBlockStorageDevice)
+char _productString[] = "Floppy Disk";
 
 bool VoodooFloppyStorageDevice::attach(IOService *provider) {
     IOLog("VoodooFloppyStorageDevice::attach()\n");
@@ -21,7 +22,7 @@ bool VoodooFloppyStorageDevice::attach(IOService *provider) {
     
     // Save reference to controller.
     _controller = (VoodooFloppyController*)provider;
-    IOLog("VoodooFloppyStorageDevice: Drive number %u, type 0x%X\n", ((OSNumber*)getProperty(FLOPPY_IOREG_DRIVE_NUM))->unsigned8BitValue(), ((OSNumber*)getProperty(FLOPPY_IOREG_DRIVE_TYPE))->unsigned8BitValue());
+    IOLog("VoodooFloppyStorageDevice: Drive number %u, type 0x%X\n", ((OSNumber*)getProperty(kFloppyPropertyDriveIdKey))->unsigned8BitValue(), ((OSNumber*)getProperty(FLOPPY_IOREG_DRIVE_TYPE))->unsigned8BitValue());
     _controller->initDrive(0, FLOPPY_TYPE_1440_35);
     return true;
 }
@@ -31,13 +32,21 @@ void VoodooFloppyStorageDevice::detach(IOService *provider) {
     super::detach(provider);
 }
 
+/*!
+ * @function doEjectMedia
+ * Eject the media.
+ */
 IOReturn VoodooFloppyStorageDevice::doEjectMedia() {
     IOLog("VoodooFloppyStorageDevice::doEjectMedia()\n");
+    
+    // Software ejection is not supported.
     return kIOReturnUnsupported;
 }
 
 IOReturn VoodooFloppyStorageDevice::doFormatMedia(UInt64 byteCapacity) {
     IOLog("VoodooFloppyStorageDevice::doFormatMedia()\n");
+    
+    // Low-level formatting is not supported.
     return kIOReturnUnsupported;
 }
 
@@ -46,24 +55,48 @@ UInt32 VoodooFloppyStorageDevice::doGetFormatCapacities(UInt64 *capacities, UInt
     return 0;
 }
 
+/*!
+ * @function getVendorString
+ * Return Vendor Name string for the device.
+ * @result
+ * A pointer to a static character string.
+ */
 char *VoodooFloppyStorageDevice::getVendorString() {
     IOLog("VoodooFloppyStorageDevice::getVendorString()\n");
-    return "";
+    return NULL;
 }
 
+/*!
+ * @function getProductString
+ * Return Product Name string for the device.
+ * @result
+ * A pointer to a static character string.
+ */
 char *VoodooFloppyStorageDevice::getProductString() {
     IOLog("VoodooFloppyStorageDevice::getProductString()\n");
-    return "Floppy Disk";
+    return _productString;
 }
 
+/*!
+ * @function getRevisionString
+ * Return Product Revision string for the device.
+ * @result
+ * A pointer to a static character string.
+ */
 char *VoodooFloppyStorageDevice::getRevisionString() {
     IOLog("VoodooFloppyStorageDevice::getRevisionString()\n");
-    return "";
+    return NULL;
 }
 
+/*!
+ * @function getAdditionalDeviceInfoString
+ * Return additional informational string for the device.
+ * @result
+ * A pointer to a static character string.
+ */
 char *VoodooFloppyStorageDevice::getAdditionalDeviceInfoString() {
     IOLog("VoodooFloppyStorageDevice::getAdditionalDeviceInfoString()\n");
-    return "";
+    return NULL;
 }
 
 IOReturn VoodooFloppyStorageDevice::reportBlockSize(UInt64 *blockSize) {
@@ -72,9 +105,20 @@ IOReturn VoodooFloppyStorageDevice::reportBlockSize(UInt64 *blockSize) {
     return kIOReturnSuccess;
 }
 
+/*!
+ * @function reportEjectability
+ * Report if the media is ejectable under software control.
+ * @discussion
+ * This method should only be called if the media is known to be removable.
+ * @param isEjectable
+ * Pointer to returned result. True indicates the media is ejectable, False indicates
+ * the media cannot be ejected under software control.
+ */
 IOReturn VoodooFloppyStorageDevice::reportEjectability(bool *isEjectable) {
-    *isEjectable = false;
     IOLog("VoodooFloppyStorageDevice::reportEjectability()\n");
+    
+    // Software ejection is not supported.
+    *isEjectable = false;
     return kIOReturnSuccess;
 }
 
@@ -90,8 +134,20 @@ IOReturn VoodooFloppyStorageDevice::reportMediaState(bool *mediaPresent, bool *c
     return kIOReturnSuccess;
 }
 
+/*!
+ * @function reportRemovability
+ * Report whether the media is removable or not.
+ * @discussion
+ * This method reports whether the media is removable, but it does not
+ * provide detailed information regarding software eject or lock/unlock capability.
+ * @param isRemovable
+ * Pointer to returned result. True indicates that the media is removable; False
+ * indicates the media is not removable.
+ */
 IOReturn VoodooFloppyStorageDevice::reportRemovability(bool *isRemovable) {
     IOLog("VoodooFloppyStorageDevice::reportRemovability()\n");
+    
+    // Media is removable.
     *isRemovable = true;
     return kIOReturnSuccess;
 }
