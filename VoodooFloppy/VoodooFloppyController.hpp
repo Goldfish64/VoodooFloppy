@@ -34,6 +34,12 @@
 #include <IOKit/IOMemoryDescriptor.h>
 #include <IOKit/storage/IOBlockStorageDevice.h>
 
+#if DEBUG
+#define DBGLOG(args...) IOLog(args)
+#else
+#define DBGLOG(args...) ;
+#endif
+
 // Floppy drive IRQ.
 #define FLOPPY_IRQ  6
 
@@ -196,6 +202,9 @@ enum {
 
 #define kFloppyPropertyDriveIdKey   "floppy-id"
 
+
+#define kFloppyMotorTimeoutMs 2000
+
 class VoodooFloppyStorageDevice;
 
 // VoodooFloppyController class.
@@ -218,6 +227,7 @@ private:
     UInt8 _driveBType;
     VoodooFloppyStorageDevice *_driveADevice;
     VoodooFloppyStorageDevice *_driveBDevice;
+    VoodooFloppyStorageDevice *_currentDevice;
     
     // Work loop and interrupts.
     IOWorkLoop *_workLoop;
@@ -229,15 +239,14 @@ private:
     IOMemoryMap *_dmaMemoryMap;
     UInt8 *_dmaBuffer;
     
-    
-    
-    
-    IOCommandGate *_cmdGate;
+    // Command gates.
+    IOCommandGate *_cmdGateReadWrite;
     
     IOReturn testAction(OSObject *target, void *arg0, void *arg1, void *arg2, void *arg3);
     
-    static void interruptHandler(OSObject*, void *refCon, IOService*, int);
+    static void interruptHandler(OSObject *target, void *refCon, IOService *nub, int source);
     void timerHandler(OSObject *owner, IOTimerEventSource *sender);
+    IOReturn readWriteGateAction(OSObject *target, void *arg0, void *arg1, void *arg2, void *arg3);
     
     
     bool waitInterrupt(UInt16 timeout);
@@ -246,22 +255,22 @@ private:
     void senseInterrupt(UInt8 *st0, UInt8 *cyl);
     void setDriveData(UInt8 stepRate, UInt16 loadTime, UInt8 unloadTime, bool dma);
     bool detectDrives(UInt8 *outTypeA, UInt8 *outTypeB);
-    UInt8 getControllerVersion(void);
+    UInt8 getControllerVersion();
     void resetController();
     
     SInt8 getMotorNum(UInt8 driveNumber);
-    bool setMotorOn(UInt8 driveNumber);
-    bool setMotorOff(UInt8 driveNumber);
+    bool setMotorOn();
+    bool setMotorOff();
     
     void setTransferSpeed(UInt8 driveType);
-    bool recalibrate(UInt8 driveNumber);
+    bool recalibrate();
     void setDma(bool write);
     
     void lbaToChs(UInt32 lba, UInt16* cyl, UInt16* head, UInt16* sector);
     UInt8 parseError(UInt8 st0, UInt8 st1, UInt8 st2);
-    bool seek(UInt8 driveNumber, UInt8 track);
-    int8_t readTrack(UInt8 driveNumber, UInt8 track);
-    bool readSectors(UInt8 driveNumber, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
+    bool seek(VoodooFloppyStorageDevice *floppyDevice, UInt8 track);
+    int8_t readTrack(VoodooFloppyStorageDevice *floppyDevice, UInt8 track);
+    bool readSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
 };
 
 #endif /* VoodooFloppyController_hpp */

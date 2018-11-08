@@ -37,9 +37,11 @@ class VoodooFloppyStorageDevice : public IOBlockStorageDevice {
     OSDeclareDefaultStructors(VoodooFloppyStorageDevice);
     
 public:
-    virtual bool attach(IOService *provider) APPLE_KEXT_OVERRIDE;
-    virtual void detach(IOService *provider) APPLE_KEXT_OVERRIDE;
+    // IOService overrides.
+    bool attach(IOService *provider) APPLE_KEXT_OVERRIDE;
+    void detach(IOService *provider) APPLE_KEXT_OVERRIDE;
     
+    // IOBlockStorageDevice overrides.
     IOReturn doEjectMedia() APPLE_KEXT_OVERRIDE;
     IOReturn doFormatMedia(UInt64 byteCapacity) APPLE_KEXT_OVERRIDE;
     UInt32 doGetFormatCapacities(UInt64 *capacities, UInt32 capacitiesMaxCount) const APPLE_KEXT_OVERRIDE;
@@ -55,7 +57,8 @@ public:
     IOReturn reportWriteProtection(bool *isWriteProtected) APPLE_KEXT_OVERRIDE;
     IOReturn doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) APPLE_KEXT_OVERRIDE;
     
-    
+    // Floppy functions.
+    UInt8 getDriveNumber();
     
 private:
     // Parent controller.
@@ -65,6 +68,10 @@ private:
     UInt8 _driveNumber;
     UInt8 _driveType;
     
+    bool _mediaPresent;
+    bool _writeProtected;
+    UInt64 _blockSize;
+    UInt64 _maxValidBlock;
 };
 
 #endif /* VoodooFloppyStorageDevice_hpp */
