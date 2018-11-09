@@ -262,11 +262,11 @@ bool VoodooFloppyStorageDevice::probeMedia() {
     
     // Try to calibrate.
     _mediaPresent = false;
-    if (_controller->recalibrate() != kIOReturnSuccess)
+    if (_controller->seek(10) != kIOReturnSuccess || _controller->recalibrate() != kIOReturnSuccess)
         newMediaPresent = false;
     else {
         // Try to read track.
-        if (_controller->readTrack(0) != kIOReturnSuccess)
+        if (_controller->seek(5) != kIOReturnSuccess || _controller->readTrack(5) != kIOReturnSuccess)
             newMediaPresent = false;
     }
 

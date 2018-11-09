@@ -845,17 +845,14 @@ IOReturn VoodooFloppyController::readTrack(UInt8 track) {
         if (!mediaPresent)
             continue;
         
-        // Get status registers.
-        UInt8 st0 = readData();
-        UInt8 st1 = readData();
-        UInt8 st2 = readData();
-        readData(); // Track.
-        readData(); // Head.
-        readData(); // Sector.
-        readData(); // Bytes per sector.
+        UInt8 resultBytes[7];
+        for (UInt8 i = 0; i < 7; i++) {
+            resultBytes[i] = readData();
+        }
+        DBGLOG("VoodooFloppyController::readTrack(%u) result: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", track, resultBytes[0], resultBytes[1], resultBytes[2], resultBytes[3], resultBytes[4], resultBytes[5], resultBytes[6]);
         
         // Determine errors if any.
-        result = parseError(st0, st1, st2);
+        result = parseError(resultBytes[0], resultBytes[1], resultBytes[2]);
         
         // If no error, we are done.
         if (result == kIOReturnSuccess)
@@ -1001,12 +998,14 @@ IOReturn VoodooFloppyController::writeSectors(VoodooFloppyStorageDevice *floppyD
     selectDrive(floppyDevice);
     
     UInt32 bufferOffset = 0;
-    static UInt16 lastTrack = -1;
+    UInt16 lastTrack = -1;
+    UInt16 oldTrack;
     
     for (UInt32 i = 0; i < sectorCount; i++) {
         // Convert LBA to CHS.
         UInt16 head = 0, track = 0, sector = 1;
         lbaToChs(sectorLba, &track, &head, &sector);
+        oldTrack = track;
         
         // Have we changed tracks?.
         if (lastTrack != track) {
@@ -1040,7 +1039,7 @@ IOReturn VoodooFloppyController::writeSectors(VoodooFloppyStorageDevice *floppyD
         // Calculate next one.
         lbaToChs(sectorLba, &track, &head, &sector);
         if (lastTrack != track || sectorLba == sectorCount) {
-            writeTrack(track);
+            writeTrack(oldTrack);
         }
     }
     
