@@ -232,8 +232,15 @@ IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer,
     //_controller->readDrive(0, buffer, block, nblks, attributes);
     
     IOReturn status = _controller->readSectors(this, block, nblks, buffer);
-    if (status != kIOReturnSuccess)
+    if (status != kIOReturnSuccess) {
+        // If media is gone, let the upper layers know.
+        if (status == kIOReturnNoMedia) {
+            IOMediaState mediaState = kIOMediaStateOffline;
+            messageClients(kIOMessageMediaStateHasChanged, &mediaState);
+        }
         return status;
+    }
+    
     IOStorage::complete(completion, kIOReturnSuccess, nblks * 512);
     return kIOReturnSuccess;
 }
