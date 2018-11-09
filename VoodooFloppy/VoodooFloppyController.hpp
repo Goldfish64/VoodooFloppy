@@ -231,8 +231,11 @@ public:
     IOReturn seek(UInt8 track);
     IOReturn readTrack(UInt8 track);
     IOReturn writeTrack(UInt8 track);
-    IOReturn readSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
-    IOReturn writeSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
+    IOReturn read(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
+    IOReturn write(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
+    
+    IOReturn readSectors(UInt8 track, UInt8 head, UInt8 sector, UInt8 count);
+    IOReturn writeSectors(UInt8 track, UInt8 head, UInt8 sector, UInt8 count);
     
 private:
     // Drives.
@@ -280,7 +283,7 @@ private:
     
     void setTransferSpeed(UInt8 driveType);
     
-    void setDma(bool write);
+    void setDma(UInt32 length, bool write);
     
     
     

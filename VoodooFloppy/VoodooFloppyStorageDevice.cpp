@@ -266,7 +266,7 @@ bool VoodooFloppyStorageDevice::probeMedia() {
         newMediaPresent = false;
     else {
         // Try to read track.
-        if (_controller->seek(5) != kIOReturnSuccess || _controller->readTrack(5) != kIOReturnSuccess)
+        if (_controller->seek(5) != kIOReturnSuccess || _controller->readSectors(5, 0, 5, 1) != kIOReturnSuccess)
             newMediaPresent = false;
     }
 
