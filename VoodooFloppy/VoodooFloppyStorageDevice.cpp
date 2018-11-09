@@ -42,7 +42,7 @@ bool VoodooFloppyStorageDevice::attach(IOService *provider) {
     _mediaPresent = true;
     _writeProtected = false;
     _blockSize = 512;
-    _maxValidBlock = 2880 - 2;
+    _maxValidBlock = 2880 - 1;
     
     // Save reference to controller.
     _controller = (VoodooFloppyController*)provider;
