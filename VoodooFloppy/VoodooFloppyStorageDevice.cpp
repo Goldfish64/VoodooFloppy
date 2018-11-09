@@ -40,7 +40,7 @@ bool VoodooFloppyStorageDevice::attach(IOService *provider) {
     
     // Media is present.
     _mediaPresent = true;
-    _writeProtected = true;
+    _writeProtected = false;
     _blockSize = 512;
     _maxValidBlock = 2880 - 2;
     
@@ -228,24 +228,33 @@ IOReturn VoodooFloppyStorageDevice::reportWriteProtection(bool *isWriteProtected
 }
 
 IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) {
-    IOLog("VoodooFloppyStorageDevice::doAsyncReadWrite(start %llu, %llu blocks)\n", block, nblks);
+    IODirection direction = buffer->getDirection();
+    IOLog("VoodooFloppyStorageDevice::doAsyncReadWrite(start %llu, %llu blocks, 0x%X)\n", block, nblks, direction);
     //_controller->readDrive(0, buffer, block, nblks, attributes);
     
-    IOReturn status = _controller->readSectors(this, block, nblks, buffer);
+  /*  IOReturn status = kIOReturnSuccess;
+    if (direction == kIODirectionIn) // Rading from device.
+        status = _controller->readSectors(this, block, nblks, buffer);
+    else if (direction == kIODirectionOut) // Writing to device.
+        status = _controller->writeSectors(this, block, nblks, buffer);*/
+    
+    IOReturn status = _controller->readWriteDrive(buffer, block, nblks, attributes);
+    
     if (status != kIOReturnSuccess) {
         // If media is gone, let the upper layers know.
         if (status == kIOReturnNoMedia) {
             IOMediaState mediaState = kIOMediaStateOffline;
             messageClients(kIOMessageMediaStateHasChanged, &mediaState);
+        } else if (status == kIOReturnNotWritable) {
+            _writeProtected = true;
+            messageClients(kIOMessageMediaParametersHaveChanged);
         }
         return status;
     }
     
-    IOStorage::complete(completion, kIOReturnSuccess, nblks * 512);
+    IOStorage::complete(completion, kIOReturnSuccess, nblks * _blockSize);
     return kIOReturnSuccess;
 }
-
-
 
 bool VoodooFloppyStorageDevice::probeMedia() {
     DBGLOG("VoodooFloppyStorageDevice::probeMedia()\n");

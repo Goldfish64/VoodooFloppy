@@ -223,14 +223,16 @@ public:
     virtual void stop(IOService *provider) APPLE_KEXT_OVERRIDE;
     
     bool initDrive(UInt8 driveNumber, UInt8 driveType);
-    bool readDrive(UInt8 driveNumber, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes);
+    IOReturn readWriteDrive(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes);
     
     void selectDrive(VoodooFloppyStorageDevice *floppyDevice);
     IOReturn checkForMedia(bool *mediaPresent, UInt8 currentTrack = 0);
     IOReturn recalibrate();
     IOReturn seek(UInt8 track);
     IOReturn readTrack(UInt8 track);
+    IOReturn writeTrack(UInt8 track);
     IOReturn readSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
+    IOReturn writeSectors(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
     
 private:
     // Drives.
@@ -257,7 +259,7 @@ private:
     
     static void interruptHandler(OSObject *target, void *refCon, IOService *nub, int source);
     void timerHandler(OSObject *owner, IOTimerEventSource *sender);
-    IOReturn readWriteGateAction(OSObject *target, void *arg0, void *arg1, void *arg2, void *arg3);
+    IOReturn readWriteGateAction(IOMemoryDescriptor *arg0, UInt64 *arg1, UInt64 *arg2);
     
     
     bool waitInterrupt(UInt16 timeout);
