@@ -230,8 +230,6 @@ public:
     IOReturn checkForMedia(bool *mediaPresent, UInt8 currentTrack = 0);
     IOReturn recalibrate();
     IOReturn seek(UInt8 track);
-    IOReturn readTrack(UInt8 track);
-    IOReturn writeTrack(UInt8 track);
     IOReturn read(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
     IOReturn write(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
     
@@ -257,7 +255,7 @@ private:
     UInt8 *_dmaBuffer;
     
     // Command gates.
-    IOCommandGate *_cmdGateReadWrite;
+    IOCommandGate *_cmdGate;
 
     
     static void interruptHandler(OSObject *target, void *refCon, IOService *nub, int source);

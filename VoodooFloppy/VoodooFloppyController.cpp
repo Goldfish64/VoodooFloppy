@@ -165,14 +165,14 @@ bool VoodooFloppyController::start(IOService *provider) {
     }
     
     // Create IOCommandGate.
-    _cmdGateReadWrite = IOCommandGate::commandGate(this, OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::readWriteGateAction));
-    if (!_cmdGateReadWrite) {
+    _cmdGate = IOCommandGate::commandGate(this);
+    if (!_cmdGate) {
         IOLog("VoodooFloppyController: Failed to create IOCommandGate.\n");
         goto fail;
     }
     
     // Add to work loop.
-    status = _workLoop->addEventSource(_cmdGateReadWrite);
+    status = _workLoop->addEventSource(_cmdGate);
     if (status != kIOReturnSuccess) {
         IOLog("VoodooFloppyController: Failed to add IOCommandGate to work loop: 0x%X\n", status);
         goto fail;
@@ -216,8 +216,8 @@ void VoodooFloppyController::stop(IOService *provider) {
     OSSafeReleaseNULL(_driveADevice);
     OSSafeReleaseNULL(_driveBDevice);
     
-    // Free command gates.
-    OSSafeReleaseNULL(_cmdGateReadWrite);
+    // Free command gate.
+    OSSafeReleaseNULL(_cmdGate);
     
     // Release DMA buffer objects.
     OSSafeReleaseNULL(_dmaMemoryMap);
@@ -236,14 +236,14 @@ void VoodooFloppyController::stop(IOService *provider) {
 
 IOReturn VoodooFloppyController::setPowerState(unsigned long powerStateOrdinal, IOService *whatDevice) {
     // If the gate is not yet created, we can't do anything yet.
-    if (!_cmdGateReadWrite)
+    if (!_cmdGate)
         return kIOReturnSuccess;
     
     // Wake up command gate if we moving to normal power state.
     if (powerStateOrdinal == kFloppyPowerStateNormal)
-        _cmdGateReadWrite->enable();
+        _cmdGate->enable();
     
-    return _cmdGateReadWrite->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::setPowerStateGated), &powerStateOrdinal);
+    return _cmdGate->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::setPowerStateGated), &powerStateOrdinal);
 }
 
 IOReturn VoodooFloppyController::setPowerStateGated(UInt32 *powerState) {
@@ -257,7 +257,7 @@ IOReturn VoodooFloppyController::setPowerStateGated(UInt32 *powerState) {
             
         case kFloppyPowerStateSleep:
             // Disable gate to prevent further actions.
-            _cmdGateReadWrite->disable();
+            _cmdGate->disable();
             break;
     }
     return kIOReturnSuccess;
@@ -275,19 +275,8 @@ bool VoodooFloppyController::initDrive(UInt8 driveNumber, UInt8 driveType) {
     return true;
 }
 
-
 IOReturn VoodooFloppyController::readWriteDrive(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes) {
-    //seek(driveNumber, 1);
-    
-    return _cmdGateReadWrite->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::readWriteGateAction), buffer, &block, &nblks, attributes);
-    
-    
-    
-    //IOSleep(2000);
-    //IOLog("VoodooFloppyController: done in sleep in readdirve\n");
-    
-    
-    //return status;
+    return _cmdGate->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::readWriteGateAction), buffer, &block, &nblks, attributes);
 }
 
 void VoodooFloppyController::selectDrive(VoodooFloppyStorageDevice *floppyDevice) {
@@ -836,81 +825,6 @@ done:
     return result;
 }
 
-IOReturn VoodooFloppyController::readTrack(UInt8 track) {
-    DBGLOG("VoodooFloppyController::readTrack(%u)\n", track);
-    IOReturn result = kIOReturnSuccess;
-    bool mediaPresent = false;
-    
-    for (UInt8 i = 0; i < FLOPPY_CMD_RETRY_COUNT; i++) {
-        // Make sure we are ready.
-        if (!isControllerReady()) {
-            result = kIOReturnNotReady;
-            goto done;
-        }
-        
-        // Turn on motor.
-        if (!setMotorOn()) {
-            result = kIOReturnNotPermitted;
-            goto done;
-        }
-        
-        // Check for media.
-        result = checkForMedia(&mediaPresent, track);
-        if (result != kIOReturnSuccess)
-            goto done;
-        
-        // Set drive info (step time = 4ms, load time = 16ms, unload time = 240ms).
-        setTransferSpeed(0); // TODO type.
-        setDriveData(0xC, 0x2, 0xF, true);
-        
-        // Initialize DMA.
-        setDma(FLOPPY_DMALENGTH, false);
-        
-        // Send read command to disk to read both sides of track.
-        writeData(FLOPPY_CMD_READ_DATA | FLOPPY_CMD_EXT_SKIP | FLOPPY_CMD_EXT_MFM | FLOPPY_CMD_EXT_MT);
-        writeData(0 << 2 | _currentDevice->getDriveNumber());
-        writeData(track);     // Track.
-        writeData(0);         // Head 0.
-        writeData(1);        // Start at sector 1.
-        writeData(FLOPPY_BYTES_SECTOR_512);
-        writeData(18);        // 18 sectors per track?
-        writeData(FLOPPY_GAP3_3_5);
-        writeData(0xFF);
-        
-        // Wait for IRQ.
-        waitInterrupt(FLOPPY_IRQ_WAIT_TIME);
-        
-        // Check for media. If media was not present before, try the read again.
-        result = checkForMedia(&mediaPresent, track);
-        if (result != kIOReturnSuccess)
-            goto done;
-        if (!mediaPresent)
-            continue;
-        
-        UInt8 resultBytes[7];
-        for (UInt8 i = 0; i < 7; i++) {
-            resultBytes[i] = readData();
-        }
-        DBGLOG("VoodooFloppyController::readTrack(%u) result: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", track, resultBytes[0], resultBytes[1], resultBytes[2], resultBytes[3], resultBytes[4], resultBytes[5], resultBytes[6]);
-        
-        // Determine errors if any.
-        result = parseError(resultBytes[0], resultBytes[1], resultBytes[2]);
-        
-        // If no error, we are done.
-        if (result == kIOReturnSuccess)
-            goto done;
-        IOSleep(100);
-    }
-    
-    // Failed.
-    DBGLOG("VoodooFloppyController::readTrack(%u): fail.\n", track);
-    result = kIOReturnIOError;
-    
-done:
-    _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
-    return result;
-}
-
 IOReturn VoodooFloppyController::readSectors(UInt8 track, UInt8 head, UInt8 sector, UInt8 count) {
     DBGLOG("VoodooFloppyController::readSectors(track %u, head %u, sector %u, count %u)\n", track, head, sector, count);
     IOReturn result = kIOReturnSuccess;
@@ -1076,84 +990,6 @@ IOReturn VoodooFloppyController::writeSectors(UInt8 track, UInt8 head, UInt8 sec
     
     // Failed.
     DBGLOG("VoodooFloppyController::readSector(%u, %u, %u) fail.\n", track, head, sector);
-    result = kIOReturnIOError;
-    
-done:
-    _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
-    return result;
-}
-
-IOReturn VoodooFloppyController::writeTrack(UInt8 track) {
-    DBGLOG("VoodooFloppyController::writeTrack(%u)\n", track);
-    IOReturn result = kIOReturnSuccess;
-    bool mediaPresent = false;
-    
-    for (UInt8 i = 0; i < FLOPPY_CMD_RETRY_COUNT; i++) {
-        // Make sure we are ready.
-        if (!isControllerReady()) {
-            result = kIOReturnNotReady;
-            goto done;
-        }
-        
-        // Turn on motor.
-        if (!setMotorOn()) {
-            result = kIOReturnNotPermitted;
-            goto done;
-        }
-        
-        // Check for media.
-        result = checkForMedia(&mediaPresent, track);
-        if (result != kIOReturnSuccess)
-            goto done;
-        
-        // Set drive info (step time = 4ms, load time = 16ms, unload time = 240ms).
-        setTransferSpeed(0); // TODO type.
-        setDriveData(0xC, 0x2, 0xF, true);
-        
-        // Initialize DMA.
-        setDma(FLOPPY_DMALENGTH, true);
-        
-        // Send read command to disk to read both sides of track.
-        writeData(FLOPPY_CMD_WRITE_DATA | FLOPPY_CMD_EXT_MFM | FLOPPY_CMD_EXT_MT);
-        writeData(0 << 2 | _currentDevice->getDriveNumber());
-        writeData(track);     // Track.
-        writeData(0);         // Head 0.
-        writeData(1);        // Start at sector 1.
-        writeData(FLOPPY_BYTES_SECTOR_512);
-        writeData(18);        // 18 sectors per track?
-        writeData(FLOPPY_GAP3_3_5);
-        writeData(0xFF);
-        
-        // Wait for IRQ.
-        waitInterrupt(FLOPPY_IRQ_WAIT_TIME);
-        
-        // Check for media. If media was not present before, try the read again.
-        result = checkForMedia(&mediaPresent, track);
-        if (result != kIOReturnSuccess)
-            goto done;
-        if (!mediaPresent)
-            continue;
-        
-        // Get status registers.
-        UInt8 st0 = readData();
-        UInt8 st1 = readData();
-        UInt8 st2 = readData();
-        readData(); // Track.
-        readData(); // Head.
-        readData(); // Sector.
-        readData(); // Bytes per sector.
-        
-        // Determine errors if any.
-        result = parseError(st0, st1, st2);
-        
-        // If no error or read-only, we are done.
-        if (result == kIOReturnSuccess || result == kIOReturnNotWritable)
-            goto done;
-        IOSleep(100);
-    }
-    
-    // Failed.
-    DBGLOG("VoodooFloppyController::writeTrack(%u): fail.\n", track);
     result = kIOReturnIOError;
     
 done:
