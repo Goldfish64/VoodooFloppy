@@ -221,6 +221,7 @@ public:
     virtual IOService *probe(IOService *provider, SInt32 *score) APPLE_KEXT_OVERRIDE;
     virtual bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
     virtual void stop(IOService *provider) APPLE_KEXT_OVERRIDE;
+    virtual IOReturn setPowerState(unsigned long powerStateOrdinal, IOService *whatDevice) APPLE_KEXT_OVERRIDE;
     
     bool initDrive(UInt8 driveNumber, UInt8 driveType);
     IOReturn readWriteDrive(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes);
@@ -257,12 +258,12 @@ private:
     
     // Command gates.
     IOCommandGate *_cmdGateReadWrite;
-    
-    IOReturn testAction(OSObject *target, void *arg0, void *arg1, void *arg2, void *arg3);
+
     
     static void interruptHandler(OSObject *target, void *refCon, IOService *nub, int source);
     void timerHandler(OSObject *owner, IOTimerEventSource *sender);
     IOReturn readWriteGateAction(IOMemoryDescriptor *arg0, UInt64 *arg1, UInt64 *arg2);
+    IOReturn setPowerStateGated(UInt32 *powerState);
     
     
     bool waitInterrupt(UInt16 timeout);

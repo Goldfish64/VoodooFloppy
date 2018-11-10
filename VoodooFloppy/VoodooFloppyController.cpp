@@ -33,13 +33,17 @@
 // and several other methods I/O Kit requires.
 OSDefineMetaClassAndStructors(VoodooFloppyController, IOService)
 
-IOReturn VoodooFloppyController::testAction(OSObject *target, void *arg0, void *arg1, void *arg2, void *arg3) {
-    while (true) {
-        IOSleep(5000);
-        IOLog("VoodooFloppy: test");
-    }
-    return kIOReturnSuccess;
-}
+// Power states.
+enum {
+    kFloppyPowerStateSleep  = 0,
+    kFloppyPowerStateNormal = 1,
+    kFloppyPowerStateCount
+};
+
+static const IOPMPowerState FloppyPowerStateArray[kFloppyPowerStateCount] = {
+    { 1, 0,0,0,0,0,0,0,0,0,0,0 },
+    { 1, kIOPMDeviceUsable, IOPMPowerOn, IOPMPowerOn, 0,0,0,0,0,0,0,0 }
+};
 
 bool VoodooFloppyController::init(OSDictionary *dictionary) {
     IOLog("VoodooFloppyController: init()\n");
@@ -82,6 +86,11 @@ bool VoodooFloppyController::start(IOService *provider) {
     IOLog("VoodooFloppyController: start()\n");
     if (!super::start(provider))
         return false;
+    
+    // Initialize power management and join tree.
+    PMinit();
+    registerPowerDriver(this, (IOPMPowerState*)FloppyPowerStateArray, kFloppyPowerStateCount);
+    provider->joinPMtree(this);
     
     // Create variables.
     UInt8 version;
@@ -223,6 +232,35 @@ void VoodooFloppyController::stop(IOService *provider) {
     
     // Free work loop.
     OSSafeReleaseNULL(_workLoop);
+}
+
+IOReturn VoodooFloppyController::setPowerState(unsigned long powerStateOrdinal, IOService *whatDevice) {
+    // If the gate is not yet created, we can't do anything yet.
+    if (!_cmdGateReadWrite)
+        return kIOReturnSuccess;
+    
+    // Wake up command gate if we moving to normal power state.
+    if (powerStateOrdinal == kFloppyPowerStateNormal)
+        _cmdGateReadWrite->enable();
+    
+    return _cmdGateReadWrite->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::setPowerStateGated), &powerStateOrdinal);
+}
+
+IOReturn VoodooFloppyController::setPowerStateGated(UInt32 *powerState) {
+    switch (*powerState) {
+        case kFloppyPowerStateNormal:
+            // Reconfigure and reset controller.
+            resetController();
+            configureController();
+            
+            break;
+            
+        case kFloppyPowerStateSleep:
+            // Disable gate to prevent further actions.
+            _cmdGateReadWrite->disable();
+            break;
+    }
+    return kIOReturnSuccess;
 }
 
 bool VoodooFloppyController::initDrive(UInt8 driveNumber, UInt8 driveType) {
@@ -626,7 +664,7 @@ IOReturn VoodooFloppyController::parseError(UInt8 st0, UInt8 st1, UInt8 st2) {
     }
     if (st1 & FLOPPY_ST1_OVERRUN_UNDERRUN) {
         DBGLOG("VoodooFloppyController: Buffer overrun/underrun.\n");
-        error = kIOReturnIOError;
+        error = kIOReturnDMAError;
     }
     if (st1 & FLOPPY_ST1_DATA_ERROR) {
         DBGLOG("VoodooFloppyController: CRC error.\n");
@@ -928,7 +966,7 @@ IOReturn VoodooFloppyController::readSectors(UInt8 track, UInt8 head, UInt8 sect
         for (UInt8 i = 0; i < 7; i++) {
             resultBytes[i] = readData();
         }
-       // DBGLOG("VoodooFloppyController::readSector(%u, %u, %u) result: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", track, head, sector, resultBytes[0], resultBytes[1], resultBytes[2], resultBytes[3], resultBytes[4], resultBytes[5], resultBytes[6]);
+        DBGLOG("VoodooFloppyController::readSectors(track %u, head %u, sector %u) result: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", track, head, sector, resultBytes[0], resultBytes[1], resultBytes[2], resultBytes[3], resultBytes[4], resultBytes[5], resultBytes[6]);
         
         // Determine errors if any.
         result = parseError(resultBytes[0], resultBytes[1], resultBytes[2]);
@@ -936,7 +974,18 @@ IOReturn VoodooFloppyController::readSectors(UInt8 track, UInt8 head, UInt8 sect
         // If no error, we are done.
         if (result == kIOReturnSuccess)
             goto done;
-        IOSleep(100);
+        
+        // Recalibrate the drive if it wasn't a DMA issue.
+        if (result != kIOReturnDMAError) {
+            result = recalibrate();
+            if (result != kIOReturnSuccess)
+                return result;
+            
+            // Seek back to position.
+            result = seek(track);
+            if (result != kIOReturnSuccess)
+                return result;
+        }
     }
     
     // Failed.
@@ -1003,7 +1052,7 @@ IOReturn VoodooFloppyController::writeSectors(UInt8 track, UInt8 head, UInt8 sec
         for (UInt8 i = 0; i < 7; i++) {
             resultBytes[i] = readData();
         }
-        // DBGLOG("VoodooFloppyController::writeSectors(%u, %u, %u) result: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", track, head, sector, resultBytes[0], resultBytes[1], resultBytes[2], resultBytes[3], resultBytes[4], resultBytes[5], resultBytes[6]);
+        DBGLOG("VoodooFloppyController::writeSectors(track %u, head %u, sector %u) result: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", track, head, sector, resultBytes[0], resultBytes[1], resultBytes[2], resultBytes[3], resultBytes[4], resultBytes[5], resultBytes[6]);
         
         // Determine errors if any.
         result = parseError(resultBytes[0], resultBytes[1], resultBytes[2]);
@@ -1011,7 +1060,18 @@ IOReturn VoodooFloppyController::writeSectors(UInt8 track, UInt8 head, UInt8 sec
         // If no error, we are done.
         if (result == kIOReturnSuccess || result == kIOReturnNotWritable)
             goto done;
-        IOSleep(100);
+        
+        // Recalibrate the drive if it wasn't a DMA issue.
+        if (result != kIOReturnDMAError) {
+            result = recalibrate();
+            if (result != kIOReturnSuccess)
+                return result;
+            
+            // Seek back to position.
+            result = seek(track);
+            if (result != kIOReturnSuccess)
+                return result;
+        }
     }
     
     // Failed.
