@@ -80,6 +80,18 @@ UInt32 VoodooFloppyStorageDevice::doGetFormatCapacities(UInt64 *capacities, UInt
     return 0;
 }
 
+IOReturn doLockUnlockMedia(bool doLock) {
+    DBGLOG("VoodooFloppyStorageDevice::doLockUnlockMedia()\n");
+    
+    // Locking is not supported.
+    return kIOReturnUnsupported;
+}
+
+IOReturn doSynchronizeCache(void) {
+    DBGLOG("VoodooFloppyStorageDevice::doSynchronizeCache()\n");
+    return kIOReturnSuccess;
+}
+
 /*!
  * @function getVendorString
  * Return Vendor Name string for the device.
@@ -155,6 +167,14 @@ IOReturn VoodooFloppyStorageDevice::reportEjectability(bool *isEjectable) {
     return kIOReturnSuccess;
 }
 
+IOReturn reportLockability(bool *isLockable) {
+    DBGLOG("VoodooFloppyStorageDevice::reportLockability()\n");
+    
+    // Locking is not supported.
+    *isLockable = false;
+    return kIOReturnSuccess;
+}
+
 /*!
  * @function reportMaxValidBlock
  * Report the highest valid block for the device.
@@ -189,6 +209,14 @@ IOReturn VoodooFloppyStorageDevice::reportMediaState(bool *mediaPresent, bool *c
     
     // Is media present or not?
     *mediaPresent = _mediaPresent;
+    return kIOReturnSuccess;
+}
+
+IOReturn reportPollRequirements(bool *pollRequired, bool *pollIsExpensive) {
+    DBGLOG("VoodooFloppyStorageDevice::reportPollRequirements()\n");
+    
+    // Polling is not supported.
+    *pollRequired = false;
     return kIOReturnSuccess;
 }
 

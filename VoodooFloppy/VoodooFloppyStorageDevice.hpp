@@ -38,24 +38,28 @@ class VoodooFloppyStorageDevice : public IOBlockStorageDevice {
     
 public:
     // IOService overrides.
-    bool attach(IOService *provider) APPLE_KEXT_OVERRIDE;
-    void detach(IOService *provider) APPLE_KEXT_OVERRIDE;
+    bool attach(IOService *provider);
+    void detach(IOService *provider);
     
     // IOBlockStorageDevice overrides.
-    IOReturn doEjectMedia() APPLE_KEXT_OVERRIDE;
-    IOReturn doFormatMedia(UInt64 byteCapacity) APPLE_KEXT_OVERRIDE;
-    UInt32 doGetFormatCapacities(UInt64 *capacities, UInt32 capacitiesMaxCount) const APPLE_KEXT_OVERRIDE;
-    char *getVendorString() APPLE_KEXT_OVERRIDE;
-    char *getProductString() APPLE_KEXT_OVERRIDE;
-    char *getRevisionString() APPLE_KEXT_OVERRIDE;
-    char *getAdditionalDeviceInfoString() APPLE_KEXT_OVERRIDE;
-    IOReturn reportBlockSize(UInt64 *blockSize) APPLE_KEXT_OVERRIDE;
-    IOReturn reportEjectability(bool *isEjectable) APPLE_KEXT_OVERRIDE;
-    IOReturn reportMaxValidBlock(UInt64 *maxBlock) APPLE_KEXT_OVERRIDE;
-    IOReturn reportMediaState(bool *mediaPresent, bool *changedState = 0) APPLE_KEXT_OVERRIDE;
-    IOReturn reportRemovability(bool *isRemovable) APPLE_KEXT_OVERRIDE;
-    IOReturn reportWriteProtection(bool *isWriteProtected) APPLE_KEXT_OVERRIDE;
-    IOReturn doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) APPLE_KEXT_OVERRIDE;
+    IOReturn doEjectMedia();
+    IOReturn doFormatMedia(UInt64 byteCapacity);
+    UInt32 doGetFormatCapacities(UInt64 *capacities, UInt32 capacitiesMaxCount) const;
+    IOReturn doLockUnlockMedia(bool doLock);
+    IOReturn doSynchronizeCache(void);
+    char *getVendorString();
+    char *getProductString();
+    char *getRevisionString();
+    char *getAdditionalDeviceInfoString();
+    IOReturn reportBlockSize(UInt64 *blockSize);
+    IOReturn reportEjectability(bool *isEjectable);
+    IOReturn reportLockability(bool *isLockable);
+    IOReturn reportRemovability(bool *isRemovable);
+    IOReturn reportMaxValidBlock(UInt64 *maxBlock);
+    IOReturn reportMediaState(bool *mediaPresent, bool *changedState = 0);
+    IOReturn reportPollRequirements(bool *pollRequired, bool *pollIsExpensive);
+    IOReturn reportWriteProtection(bool *isWriteProtected);
+    IOReturn doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion);
     
     // Floppy functions.
     void probeMedia();

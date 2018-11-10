@@ -217,11 +217,11 @@ class VoodooFloppyController : IOService {
     OSDeclareDefaultStructors(VoodooFloppyController);
     
 public:
-    virtual bool init(OSDictionary *dictionary = 0) APPLE_KEXT_OVERRIDE;
-    virtual IOService *probe(IOService *provider, SInt32 *score) APPLE_KEXT_OVERRIDE;
-    virtual bool start(IOService *provider) APPLE_KEXT_OVERRIDE;
-    virtual void stop(IOService *provider) APPLE_KEXT_OVERRIDE;
-    virtual IOReturn setPowerState(unsigned long powerStateOrdinal, IOService *whatDevice) APPLE_KEXT_OVERRIDE;
+    virtual bool init(OSDictionary *dictionary = 0);
+    virtual IOService *probe(IOService *provider, SInt32 *score);
+    virtual bool start(IOService *provider);
+    virtual void stop(IOService *provider);
+    virtual IOReturn setPowerState(unsigned long powerStateOrdinal, IOService *whatDevice);
     
     IOReturn probeDriveMedia(VoodooFloppyStorageDevice *floppyDevice);
     IOReturn readWriteDrive(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks);
