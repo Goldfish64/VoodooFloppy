@@ -238,7 +238,7 @@ IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer,
     else if (direction == kIODirectionOut) // Writing to device.
         status = _controller->writeSectors(this, block, nblks, buffer);*/
     
-    IOReturn status = _controller->readWriteDrive(buffer, block, nblks, attributes);
+    IOReturn status = _controller->readWriteDrive(this, buffer, block, nblks);
     
     if (status != kIOReturnSuccess) {
         // If media is gone, let the upper layers know.
@@ -266,7 +266,7 @@ bool VoodooFloppyStorageDevice::probeMedia() {
         newMediaPresent = false;
     else {
         // Try to read track.
-        if (_controller->seek(5) != kIOReturnSuccess || _controller->readSectors(5, 0, 5, 1) != kIOReturnSuccess)
+        if (_controller->seek(5) != kIOReturnSuccess || _controller->readWriteSectors(false, 5, 0, 5, 1) != kIOReturnSuccess)
             newMediaPresent = false;
     }
 
@@ -287,4 +287,9 @@ bool VoodooFloppyStorageDevice::probeMedia() {
 UInt8 VoodooFloppyStorageDevice::getDriveNumber() {
     // Return drive number.
     return _driveNumber;
+}
+
+UInt32 VoodooFloppyStorageDevice::getBlockSize() {
+    // Return block size.
+    return _blockSize;
 }

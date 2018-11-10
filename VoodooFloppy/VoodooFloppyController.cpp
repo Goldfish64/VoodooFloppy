@@ -275,8 +275,8 @@ bool VoodooFloppyController::initDrive(UInt8 driveNumber, UInt8 driveType) {
     return true;
 }
 
-IOReturn VoodooFloppyController::readWriteDrive(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes) {
-    return _cmdGate->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::readWriteGateAction), buffer, &block, &nblks, attributes);
+IOReturn VoodooFloppyController::readWriteDrive(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks) {
+    return _cmdGate->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::readWriteGated), floppyDevice, buffer, &block, &nblks);
 }
 
 void VoodooFloppyController::selectDrive(VoodooFloppyStorageDevice *floppyDevice) {
@@ -291,10 +291,6 @@ void VoodooFloppyController::selectDrive(VoodooFloppyStorageDevice *floppyDevice
     switch (0) {
             // TODO
     }
-    
-    // Write speed to CCR.
-    outb(FLOPPY_REG_CCR, speed & 0x3);
-    setDriveData(0xC, 0x2, 0xF, true);
     
     // Recalibrate drive.
     recalibrate();
@@ -318,26 +314,74 @@ void VoodooFloppyController::timerHandler(OSObject *owner, IOTimerEventSource *s
     setMotorOff();
 }
 
-IOReturn VoodooFloppyController::readWriteGateAction(IOMemoryDescriptor *arg0, UInt64 *arg1, UInt64 *arg2) {
-    //DBGLOG("VoodooFloppyController::readWriteGateAction()\n");
+IOReturn VoodooFloppyController::readWriteGated(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 *block, UInt64 *nblks) {
+    DBGLOG("VoodooFloppyController::readWriteGated()\n");
     
-   // VoodooFloppyController *controller = OSDynamicCast(VoodooFloppyController, target);
-    //controller->getControllerVersion();
+    // Ensure buffer direction is valid.
+    IODirection bufferDirection = buffer->getDirection();
+    if (bufferDirection != kIODirectionIn && bufferDirection != kIODirectionOut)
+        return kIOReturnInvalid;
     
-    IOMemoryDescriptor *buffer = arg0;
-    UInt64 block = *arg1;
-    UInt64 nblks = *arg2;
+    // Determine if we are reading or writing.
+    bool write = bufferDirection == kIODirectionOut;
     
-    if (!buffer)
-        return kIOReturnError;
+    // Select drive.
+    selectDrive(floppyDevice);
     
-    //DBGLOG("VoodooFloppyController::readWriteGateAction(): continue %llu %llu\n", block, nblks);
+    // Read/write sectors.
+    UInt32 bufferOffset = 0;
+    UInt16 lastTrack = -1;
+    UInt32 currentSectorLba = (UInt32)*block;
+    UInt64 remainingSectors = *nblks;
+    while (currentSectorLba < *block + *nblks) {
+        // Convert LBA to CHS.
+        UInt16 head = 0, track = 0, sector = 1;
+        lbaToChs(currentSectorLba, &track, &head, &sector);
+        
+        // Have we changed tracks?. If so we need to seek.
+        if (lastTrack != track) {
+            IOReturn status = seek(track);
+            if (status != kIOReturnSuccess)
+                return status;
+            lastTrack = track;
+        }
+        
+        // Variables used for determing remaining sectors in track.
+        UInt16 nextHead = 0, nextTrack = 0, nextSector = 1;
+        UInt32 nextSectorLba = currentSectorLba;
+        UInt8 nextSectorCount = 0;
+        
+        // Calculate remaining sectors in track.
+        do {
+            nextSectorLba++;
+            nextSectorCount++;
+            lbaToChs(nextSectorLba, &nextTrack, &nextHead, &nextSector);
+        } while (nextTrack == track && nextSectorCount < remainingSectors);
+        
+        // Determine total bytes.
+        IOByteCount byteCount = nextSectorCount * floppyDevice->getBlockSize();
+        
+        // Are we writing? If so we need to write data to DMA buffer.
+        if (write && buffer->readBytes(bufferOffset, _dmaBuffer, byteCount) != byteCount)
+            return kIOReturnIOError;
+        
+        // Read/write sectors from/to disk.
+        IOReturn status = readWriteSectors(write, track, head, sector, nextSectorCount);
+        if (status != kIOReturnSuccess)
+            return status;
+        
+        // Are we reading? If so we need to read data from DMA buffer.
+        if (!write && buffer->writeBytes(bufferOffset, _dmaBuffer, byteCount) != byteCount)
+            return kIOReturnIOError;
+        
+        // Move to next sector.
+        currentSectorLba += nextSectorCount;
+        remainingSectors -= nextSectorCount;
+        bufferOffset += 512 * nextSectorCount;
+    }
     
-    if (buffer->getDirection() == kIODirectionIn) // Rading from device.
-        return read(_driveADevice, block, nblks, buffer);
-    else if (buffer->getDirection() == kIODirectionOut) // Writing to device.
-        return write(_driveADevice, block, nblks, buffer);
-    return kIOReturnInvalid;
+    // Operation was successful.
+    return kIOReturnSuccess;
 }
 
 /**
@@ -825,8 +869,8 @@ done:
     return result;
 }
 
-IOReturn VoodooFloppyController::readSectors(UInt8 track, UInt8 head, UInt8 sector, UInt8 count) {
-    DBGLOG("VoodooFloppyController::readSectors(track %u, head %u, sector %u, count %u)\n", track, head, sector, count);
+IOReturn VoodooFloppyController::readWriteSectors(bool write, UInt8 track, UInt8 head, UInt8 sector, UInt8 count) {
+    DBGLOG("VoodooFloppyController::readWriteSectors(write %u, track %u, head %u, sector %u, count %u)\n", write, track, head, sector, count);
     IOReturn result = kIOReturnSuccess;
     bool mediaPresent = false;
     
@@ -848,15 +892,15 @@ IOReturn VoodooFloppyController::readSectors(UInt8 track, UInt8 head, UInt8 sect
         if (result != kIOReturnSuccess)
             goto done;
         
-        // Set drive info (step time = 4ms, load time = 16ms, unload time = 240ms).
-        setTransferSpeed(0); // TODO type.
+        // Write speed to CCR.
+        setTransferSpeed(0);
         setDriveData(0xC, 0x2, 0xF, true);
         
         // Initialize DMA.
-        setDma(count * 512, false);
+        setDma(count * _currentDevice->getBlockSize(), write);
         
         // Send read command to disk to read both sides of track.
-        writeData(FLOPPY_CMD_READ_DATA | FLOPPY_CMD_EXT_SKIP | FLOPPY_CMD_EXT_MFM | FLOPPY_CMD_EXT_MT);
+        writeData((write ? FLOPPY_CMD_WRITE_DATA : FLOPPY_CMD_READ_DATA) | FLOPPY_CMD_EXT_SKIP | FLOPPY_CMD_EXT_MFM | FLOPPY_CMD_EXT_MT);
         writeData(head << 2 | _currentDevice->getDriveNumber());
         writeData(track);     // Track.
         writeData(head);         // Head 0.
@@ -880,93 +924,7 @@ IOReturn VoodooFloppyController::readSectors(UInt8 track, UInt8 head, UInt8 sect
         for (UInt8 i = 0; i < 7; i++) {
             resultBytes[i] = readData();
         }
-        DBGLOG("VoodooFloppyController::readSectors(track %u, head %u, sector %u) result: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", track, head, sector, resultBytes[0], resultBytes[1], resultBytes[2], resultBytes[3], resultBytes[4], resultBytes[5], resultBytes[6]);
-        
-        // Determine errors if any.
-        result = parseError(resultBytes[0], resultBytes[1], resultBytes[2]);
-        
-        // If no error, we are done.
-        if (result == kIOReturnSuccess)
-            goto done;
-        
-        // Recalibrate the drive if it wasn't a DMA issue.
-        if (result != kIOReturnDMAError) {
-            result = recalibrate();
-            if (result != kIOReturnSuccess)
-                return result;
-            
-            // Seek back to position.
-            result = seek(track);
-            if (result != kIOReturnSuccess)
-                return result;
-        }
-    }
-    
-    // Failed.
-    DBGLOG("VoodooFloppyController::readSector(%u, %u, %u) fail.\n", track, head, sector);
-    result = kIOReturnIOError;
-    
-done:
-    _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
-    return result;
-}
-
-IOReturn VoodooFloppyController::writeSectors(UInt8 track, UInt8 head, UInt8 sector, UInt8 count) {
-    DBGLOG("VoodooFloppyController::writeSectors(track %u, head %u, sector %u, count %u)\n", track, head, sector, count);
-    IOReturn result = kIOReturnSuccess;
-    bool mediaPresent = false;
-    
-    for (UInt8 i = 0; i < FLOPPY_CMD_RETRY_COUNT; i++) {
-        // Make sure we are ready.
-        if (!isControllerReady()) {
-            result = kIOReturnNotReady;
-            goto done;
-        }
-        
-        // Turn on motor.
-        if (!setMotorOn()) {
-            result = kIOReturnNotPermitted;
-            goto done;
-        }
-        
-        // Check for media.
-        result = checkForMedia(&mediaPresent, track);
-        if (result != kIOReturnSuccess)
-            goto done;
-        
-        // Set drive info (step time = 4ms, load time = 16ms, unload time = 240ms).
-        setTransferSpeed(0); // TODO type.
-        setDriveData(0xC, 0x2, 0xF, true);
-        
-        // Initialize DMA.
-        setDma(count * 512, true);
-        
-        // Send read command to disk to read both sides of track.
-        writeData(FLOPPY_CMD_WRITE_DATA | FLOPPY_CMD_EXT_SKIP | FLOPPY_CMD_EXT_MFM | FLOPPY_CMD_EXT_MT);
-        writeData(head << 2 | _currentDevice->getDriveNumber());
-        writeData(track);     // Track.
-        writeData(head);         // Head 0.
-        writeData(sector);        // Start at sector 1.
-        writeData(FLOPPY_BYTES_SECTOR_512);
-        writeData(18);        // 18 sectors per track?
-        writeData(FLOPPY_GAP3_3_5);
-        writeData(0xFF);
-        
-        // Wait for IRQ.
-        waitInterrupt(FLOPPY_IRQ_WAIT_TIME);
-        
-        // Check for media. If media was not present before, try the read again.
-        result = checkForMedia(&mediaPresent, track);
-        if (result != kIOReturnSuccess)
-            goto done;
-        if (!mediaPresent)
-            continue;
-        
-        UInt8 resultBytes[7];
-        for (UInt8 i = 0; i < 7; i++) {
-            resultBytes[i] = readData();
-        }
-        DBGLOG("VoodooFloppyController::writeSectors(track %u, head %u, sector %u) result: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", track, head, sector, resultBytes[0], resultBytes[1], resultBytes[2], resultBytes[3], resultBytes[4], resultBytes[5], resultBytes[6]);
+        DBGLOG("VoodooFloppyController::readWriteSectors(write %u, track %u, head %u, sector %u) result: 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n", write, track, head, sector, resultBytes[0], resultBytes[1], resultBytes[2], resultBytes[3], resultBytes[4], resultBytes[5], resultBytes[6]);
         
         // Determine errors if any.
         result = parseError(resultBytes[0], resultBytes[1], resultBytes[2]);
@@ -977,6 +935,7 @@ IOReturn VoodooFloppyController::writeSectors(UInt8 track, UInt8 head, UInt8 sec
         
         // Recalibrate the drive if it wasn't a DMA issue.
         if (result != kIOReturnDMAError) {
+            seek(10);
             result = recalibrate();
             if (result != kIOReturnSuccess)
                 return result;
@@ -985,142 +944,15 @@ IOReturn VoodooFloppyController::writeSectors(UInt8 track, UInt8 head, UInt8 sec
             result = seek(track);
             if (result != kIOReturnSuccess)
                 return result;
+            IOSleep(100);
         }
     }
     
     // Failed.
-    DBGLOG("VoodooFloppyController::readSector(%u, %u, %u) fail.\n", track, head, sector);
+    DBGLOG("VoodooFloppyController::readWriteSectors(write %u, track %u, head %u, sector %u) fail.\n", write, track, head, sector);
     result = kIOReturnIOError;
     
 done:
     _tmrMotorOffSource->setTimeoutMS(kFloppyMotorTimeoutMs);
     return result;
-}
-
-IOReturn VoodooFloppyController::read(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer) {
-    DBGLOG("VoodooFloppyController::read()\n");
-    selectDrive(floppyDevice);
-    
-    UInt32 bufferOffset = 0;
-    UInt16 lastTrack = -1;
-    UInt32 currentSectorLba = sectorLba;
-    UInt64 remainingSectors = sectorCount;
-    while (currentSectorLba < sectorLba + sectorCount) {
-        // Convert LBA to CHS.
-        UInt16 head = 0, track = 0, sector = 1;
-        lbaToChs(currentSectorLba, &track, &head, &sector);
-        
-        // Have we changed tracks?.
-        if (lastTrack != track) {
-            IOReturn status = seek(track);
-            if (status != kIOReturnSuccess)
-                return status;
-            
-            // Read track.
-           // status = readTrack(track);
-            //if (status != kIOReturnSuccess)
-            //    return status;
-            lastTrack = track;
-        }
-        
-        // Determine number of sectors on the rest of the track.
-        UInt16 nextHead = 0, nextTrack = 0, nextSector = 1;
-        UInt32 nextSectorLba = currentSectorLba;
-        UInt8 nextSectorCount = 0;
-        
-        do {
-            nextSectorLba++;
-            nextSectorCount++;
-            lbaToChs(nextSectorLba, &nextTrack, &nextHead, &nextSector);
-        } while (nextTrack == track && nextSectorCount < remainingSectors);
-        
-        // Read sector.
-        IOReturn status = readSectors(track, head, sector, nextSectorCount);
-        if (status != kIOReturnSuccess)
-            return status;
-        
-       // UInt32 size = remainingLength;
-        //if (size > 512)
-         //   size = 512;
-        
-        // Copy data.
-        //UInt32 headOffset = head == 1 ? (18 * 512) : 0;
-        //memcpy(outBuffer + bufferOffset, floppyDrive->DmaBuffer + ((sector - 1) * 512) + headOffset, size);
-       // buffer->writeBytes(bufferOffset, _dmaBuffer + ((sector - 1) * 512) + headOffset, 512);
-        DBGLOG("VoodooFloppyController::read() next count=%u\n", nextSectorCount);
-          buffer->writeBytes(bufferOffset, _dmaBuffer, 512 * nextSectorCount);
-        
-        // Move to next sector.
-        currentSectorLba += nextSectorCount;
-        remainingSectors -= nextSectorCount;
-       // remainingLength -= size;
-        bufferOffset += 512 * nextSectorCount;
-    }
-    
-    return kIOReturnSuccess;
-}
-
-IOReturn VoodooFloppyController::write(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer) {
-    DBGLOG("VoodooFloppyController::write()\n");
-    selectDrive(floppyDevice);
-    
-    UInt32 bufferOffset = 0;
-    UInt16 lastTrack = -1;
-    UInt32 currentSectorLba = sectorLba;
-    UInt64 remainingSectors = sectorCount;
-    while (currentSectorLba < sectorLba + sectorCount) {
-        // Convert LBA to CHS.
-        UInt16 head = 0, track = 0, sector = 1;
-        lbaToChs(currentSectorLba, &track, &head, &sector);
-        
-        // Have we changed tracks?.
-        if (lastTrack != track) {
-            IOReturn status = seek(track);
-            if (status != kIOReturnSuccess)
-                return status;
-            
-            // Read track.
-            // status = readTrack(track);
-            //if (status != kIOReturnSuccess)
-            //    return status;
-            lastTrack = track;
-        }
-        
-        // Determine number of sectors on the rest of the track.
-        UInt16 nextHead = 0, nextTrack = 0, nextSector = 1;
-        UInt32 nextSectorLba = currentSectorLba;
-        UInt8 nextSectorCount = 0;
-        
-        do {
-            nextSectorLba++;
-            nextSectorCount++;
-            lbaToChs(nextSectorLba, &nextTrack, &nextHead, &nextSector);
-        } while (nextTrack == track && nextSectorCount < remainingSectors);
-        
-
-        
-        // UInt32 size = remainingLength;
-        //if (size > 512)
-        //   size = 512;
-        
-        // Copy data.
-        //UInt32 headOffset = head == 1 ? (18 * 512) : 0;
-        //memcpy(outBuffer + bufferOffset, floppyDrive->DmaBuffer + ((sector - 1) * 512) + headOffset, size);
-        // buffer->writeBytes(bufferOffset, _dmaBuffer + ((sector - 1) * 512) + headOffset, 512);
-        DBGLOG("VoodooFloppyController::read() next count=%u\n", nextSectorCount);
-        buffer->readBytes(bufferOffset, _dmaBuffer, 512 * nextSectorCount);
-        
-        // Write sectors.
-        IOReturn status = writeSectors(track, head, sector, nextSectorCount);
-        if (status != kIOReturnSuccess)
-            return status;
-        
-        // Move to next sector.
-        currentSectorLba += nextSectorCount;
-        remainingSectors -= nextSectorCount;
-        // remainingLength -= size;
-        bufferOffset += 512 * nextSectorCount;
-    }
-    
-    return kIOReturnSuccess;
 }

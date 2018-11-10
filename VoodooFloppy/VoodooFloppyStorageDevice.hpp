@@ -63,6 +63,8 @@ public:
     UInt8 getDriveNumber();
     UInt8 getDataRate();
     
+    UInt32 getBlockSize();
+    
 private:
     // Parent controller.
     VoodooFloppyController *_controller;
@@ -75,7 +77,7 @@ private:
     
     bool _mediaPresent;
     bool _writeProtected;
-    UInt64 _blockSize;
+    UInt32 _blockSize;
     UInt64 _maxValidBlock;
 };
 

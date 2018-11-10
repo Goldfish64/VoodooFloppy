@@ -224,18 +224,14 @@ public:
     virtual IOReturn setPowerState(unsigned long powerStateOrdinal, IOService *whatDevice) APPLE_KEXT_OVERRIDE;
     
     bool initDrive(UInt8 driveNumber, UInt8 driveType);
-    IOReturn readWriteDrive(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes);
+    IOReturn readWriteDrive(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks);
     
     void selectDrive(VoodooFloppyStorageDevice *floppyDevice);
     IOReturn checkForMedia(bool *mediaPresent, UInt8 currentTrack = 0);
     IOReturn recalibrate();
     IOReturn seek(UInt8 track);
-    IOReturn read(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
-    IOReturn write(VoodooFloppyStorageDevice *floppyDevice, UInt32 sectorLba, UInt64 sectorCount, IOMemoryDescriptor *buffer);
     
-    IOReturn readSectors(UInt8 track, UInt8 head, UInt8 sector, UInt8 count);
-    IOReturn writeSectors(UInt8 track, UInt8 head, UInt8 sector, UInt8 count);
-    
+    IOReturn readWriteSectors(bool write, UInt8 track, UInt8 head, UInt8 sector, UInt8 count);
 private:
     // Drives.
     UInt8 _driveAType;
@@ -260,7 +256,7 @@ private:
     
     static void interruptHandler(OSObject *target, void *refCon, IOService *nub, int source);
     void timerHandler(OSObject *owner, IOTimerEventSource *sender);
-    IOReturn readWriteGateAction(IOMemoryDescriptor *arg0, UInt64 *arg1, UInt64 *arg2);
+    IOReturn readWriteGated(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 *block, UInt64 *nblks);
     IOReturn setPowerStateGated(UInt32 *powerState);
     
     
