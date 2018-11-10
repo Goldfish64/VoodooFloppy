@@ -288,7 +288,7 @@ IOReturn VoodooFloppyStorageDevice::reportWriteProtection(bool *isWriteProtected
 
 IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks, IOStorageAttributes *attributes, IOStorageCompletion *completion) {
     IODirection direction = buffer->getDirection();
-    IOLog("VoodooFloppyStorageDevice::doAsyncReadWrite(start %llu, %llu blocks, 0x%X)\n", block, nblks, direction);
+    DBGLOG("VoodooFloppyStorageDevice::doAsyncReadWrite(start %llu, %llu blocks, 0x%X)\n", block, nblks, direction);
     //_controller->readDrive(0, buffer, block, nblks, attributes);
     
   /*  IOReturn status = kIOReturnSuccess;

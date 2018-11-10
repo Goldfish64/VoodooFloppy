@@ -844,6 +844,7 @@ IOReturn VoodooFloppyController::recalibrate() {
         // If current cylinder is zero, we are done.
         if (!cyl) {
             result = kIOReturnSuccess;
+            IOSleep(100);
             goto done;
         }
     }
@@ -893,6 +894,7 @@ IOReturn VoodooFloppyController::seek(UInt8 track) {
         // If we have reached the requested track, return.
         if (cyl == track) {
             result = kIOReturnSuccess;
+            IOSleep(50);
             goto done;
         }
     }
