@@ -51,6 +51,8 @@ public:
     char *getProductString();
     char *getRevisionString();
     char *getAdditionalDeviceInfoString();
+    IOReturn getWriteCacheState(bool *enabled);
+    IOReturn setWriteCacheState(bool enabled);
     IOReturn reportBlockSize(UInt64 *blockSize);
     IOReturn reportEjectability(bool *isEjectable);
     IOReturn reportLockability(bool *isLockable);

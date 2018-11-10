@@ -137,6 +137,38 @@ char *VoodooFloppyStorageDevice::getAdditionalDeviceInfoString() {
 }
 
 /*!
+ * @function getWriteCacheState
+ * @abstract
+ * Reports the current write cache state of the device.
+ * @discussion
+ * Reports the current write cache state of the device.  The write cache
+ * state is not guaranteed to persist across reboots and detaches.
+ * @param enabled
+ * Pointer to returned result. True indicates the write cache is enabled;
+ * False indicates the write cache is disabled.
+ */
+IOReturn getWriteCacheState(bool *enabled) {
+    DBGLOG("VoodooFloppyStorageDevice::getWriteCacheState()\n");
+    *enabled = false;
+    return kIOReturnSuccess;
+}
+
+/*!
+ * @function setWriteCacheState
+ * @abstract
+ * Sets the write cache state of the device.
+ * @discussion
+ * Sets the write cache state of the device.  The write cache state
+ * is not guaranteed to persist across reboots and detaches.
+ * @param enabled
+ * True to enable the write cache; False to disable the write cache.
+ */
+IOReturn setWriteCacheState(bool enabled) {
+    DBGLOG("VoodooFloppyStorageDevice::setWriteCacheState()\n");
+    return kIOReturnUnsupported;
+}
+
+/*!
  * @function reportBlockSize
  * Report the block size for the device, in bytes.
  * @param blockSize
