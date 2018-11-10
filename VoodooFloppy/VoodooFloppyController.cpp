@@ -95,9 +95,12 @@ IOService *VoodooFloppyController::probe(IOService *provider, SInt32 *score) {
  @discussion The <code>start</code> method of an IOService instance is called by its provider when it has been selected (due to its probe score and match category) as the winning client. The client is already attached to the provider when <code>start</code> is called.<br>Implementations of <code>start</code> must call <code>start</code> on their superclass at an appropriate point. If an implementation of <code>start</code> has already called <code>super::start</code> but subsequently determines that it will fail, it must call <code>super::stop</code> to balance the prior call to <code>super::start</code> and prevent reference leaks.
  @result <code>true</code> if the start was successful; <code>false</code> otherwise (which will cause the instance to be detached and usually freed). */
 bool VoodooFloppyController::start(IOService *provider) {
-    DBGLOG("VoodooFloppyController: start()\n");
+    DBGLOG("VoodooFloppyController::start()\n");
     if (!super::start(provider))
         return false;
+    
+    extern kmod_info_t kmod_info;
+    IOLog("VoodooFloppy: Starting version %s.\n", kmod_info.version);
     
     // Initialize power management and join tree.
     PMinit();
