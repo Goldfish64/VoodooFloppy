@@ -80,14 +80,14 @@ UInt32 VoodooFloppyStorageDevice::doGetFormatCapacities(UInt64 *capacities, UInt
     return 0;
 }
 
-IOReturn doLockUnlockMedia(bool doLock) {
+IOReturn VoodooFloppyStorageDevice::doLockUnlockMedia(bool doLock) {
     DBGLOG("VoodooFloppyStorageDevice::doLockUnlockMedia()\n");
     
     // Locking is not supported.
     return kIOReturnUnsupported;
 }
 
-IOReturn doSynchronizeCache(void) {
+IOReturn VoodooFloppyStorageDevice::doSynchronizeCache(void) {
     DBGLOG("VoodooFloppyStorageDevice::doSynchronizeCache()\n");
     return kIOReturnSuccess;
 }
@@ -147,7 +147,7 @@ char *VoodooFloppyStorageDevice::getAdditionalDeviceInfoString() {
  * Pointer to returned result. True indicates the write cache is enabled;
  * False indicates the write cache is disabled.
  */
-IOReturn getWriteCacheState(bool *enabled) {
+IOReturn VoodooFloppyStorageDevice::getWriteCacheState(bool *enabled) {
     DBGLOG("VoodooFloppyStorageDevice::getWriteCacheState()\n");
     *enabled = false;
     return kIOReturnSuccess;
@@ -163,7 +163,7 @@ IOReturn getWriteCacheState(bool *enabled) {
  * @param enabled
  * True to enable the write cache; False to disable the write cache.
  */
-IOReturn setWriteCacheState(bool enabled) {
+IOReturn VoodooFloppyStorageDevice::setWriteCacheState(bool enabled) {
     DBGLOG("VoodooFloppyStorageDevice::setWriteCacheState()\n");
     return kIOReturnUnsupported;
 }
@@ -199,7 +199,7 @@ IOReturn VoodooFloppyStorageDevice::reportEjectability(bool *isEjectable) {
     return kIOReturnSuccess;
 }
 
-IOReturn reportLockability(bool *isLockable) {
+IOReturn VoodooFloppyStorageDevice::reportLockability(bool *isLockable) {
     DBGLOG("VoodooFloppyStorageDevice::reportLockability()\n");
     
     // Locking is not supported.
@@ -244,7 +244,7 @@ IOReturn VoodooFloppyStorageDevice::reportMediaState(bool *mediaPresent, bool *c
     return kIOReturnSuccess;
 }
 
-IOReturn reportPollRequirements(bool *pollRequired, bool *pollIsExpensive) {
+IOReturn VoodooFloppyStorageDevice::reportPollRequirements(bool *pollRequired, bool *pollIsExpensive) {
     DBGLOG("VoodooFloppyStorageDevice::reportPollRequirements()\n");
     
     // Polling is not supported.
