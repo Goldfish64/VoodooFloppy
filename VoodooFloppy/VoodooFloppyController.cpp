@@ -45,6 +45,8 @@ static const IOPMPowerState FloppyPowerStateArray[kFloppyPowerStateCount] = {
     { 1, kIOPMDeviceUsable, IOPMPowerOn, IOPMPowerOn, 0,0,0,0,0,0,0,0 }
 };
 
+/*! @function init
+ @abstract Initializes generic IOService data structures (expansion data, etc). */
 bool VoodooFloppyController::init(OSDictionary *dictionary) {
     IOLog("VoodooFloppyController: init()\n");
     if (!super::init(dictionary))
@@ -67,6 +69,12 @@ bool VoodooFloppyController::init(OSDictionary *dictionary) {
     return true;
 }
 
+/*! @function probe
+ @abstract During an IOService object's instantiation, probes a matched service to see if it can be used.
+ @discussion The registration process for an IOService object (the provider) includes instantiating possible driver clients. The <code>probe</code> method is called in the client instance to check the matched service can be used before the driver is considered to be started. Since matching screens many possible providers, in many cases the <code>probe</code> method can be left unimplemented by IOService subclasses. The client is already attached to the provider when <code>probe</code> is called.
+ @param provider The registered IOService object that matches a driver personality's matching dictionary.
+ @param score Pointer to the current driver's probe score, which is used to order multiple matching drivers in the same match category. It defaults to the value of the <code>IOProbeScore</code> property in the drivers property table, or <code>kIODefaultProbeScore</code> if none is specified. The <code>probe</code> method may alter the score to affect start order.
+ @result An IOService instance or zero when the probe is unsuccessful. In almost all cases the value of <code>this</code> is returned on success. If another IOService object is returned, the probed instance is detached and freed, and the returned instance is used in its stead for <code>start</code>. */
 IOService *VoodooFloppyController::probe(IOService *provider, SInt32 *score) {
     IOLog("VoodooFloppyController: probe()\n");
     if (!super::probe(provider, score))
@@ -82,8 +90,12 @@ IOService *VoodooFloppyController::probe(IOService *provider, SInt32 *score) {
     return this;
 }
 
+/*! @function start
+ @abstract During an IOService object's instantiation, starts the IOService object that has been selected to run on the provider.
+ @discussion The <code>start</code> method of an IOService instance is called by its provider when it has been selected (due to its probe score and match category) as the winning client. The client is already attached to the provider when <code>start</code> is called.<br>Implementations of <code>start</code> must call <code>start</code> on their superclass at an appropriate point. If an implementation of <code>start</code> has already called <code>super::start</code> but subsequently determines that it will fail, it must call <code>super::stop</code> to balance the prior call to <code>super::start</code> and prevent reference leaks.
+ @result <code>true</code> if the start was successful; <code>false</code> otherwise (which will cause the instance to be detached and usually freed). */
 bool VoodooFloppyController::start(IOService *provider) {
-    IOLog("VoodooFloppyController: start()\n");
+    DBGLOG("VoodooFloppyController: start()\n");
     if (!super::start(provider))
         return false;
     
@@ -204,13 +216,16 @@ bool VoodooFloppyController::start(IOService *provider) {
     
 fail:
     // If we get here that means something failed, so stop the kext.
-    IOLog("VoodooFloppyController: Failed to start().\n");
+    IOLog("VoodooFloppyController::start(): fail.\n");
     stop(provider);
     return false;
 }
 
+/*! @function stop
+ @abstract During an IOService termination, the stop method is called in its clients before they are detached & it is destroyed.
+ @discussion The termination process for an IOService (the provider) will call stop in each of its clients, after they have closed the provider if they had it open, or immediately on termination. */
 void VoodooFloppyController::stop(IOService *provider) {
-    IOLog("VoodooFloppyController::stop()\n");
+    DBGLOG("VoodooFloppyController::stop()\n");
     
     // Free device objects.
     OSSafeReleaseNULL(_driveADevice);
@@ -232,9 +247,24 @@ void VoodooFloppyController::stop(IOService *provider) {
     
     // Free work loop.
     OSSafeReleaseNULL(_workLoop);
+    super::stop(provider);
 }
 
+/*! @function setPowerState
+ @abstract Requests a power managed driver to change the power state of its device.
+ @discussion A power managed driver must override <code>setPowerState</code> to take part in system power management. After a driver is registered with power management, the system uses <code>setPowerState</code> to power the device off and on for system sleep and wake.
+ Calls to @link PMinit PMinit@/link and @link registerPowerDriver registerPowerDriver@/link enable power management to change a device's power state using <code>setPowerState</code>. <code>setPowerState</code> is called in a clean and separate thread context.
+ @param powerStateOrdinal The number in the power state array of the state the driver is being instructed to switch to.
+ @param whatDevice A pointer to the power management object which registered to manage power for this device. In most cases, <code>whatDevice</code> will be equal to your driver's own <code>this</code> pointer.
+ @result The driver must return <code>IOPMAckImplied</code> if it has complied with the request when it returns. Otherwise if it has started the process of changing power state but not finished it, the driver should return a number of microseconds which is an upper limit of the time it will need to finish. Then, when it has completed the power switch, it should call @link acknowledgeSetPowerState acknowledgeSetPowerState@/link. */
 IOReturn VoodooFloppyController::setPowerState(unsigned long powerStateOrdinal, IOService *whatDevice) {
+    DBGLOG("VoodooFloppyController::setPowerState()\n");
+    
+    // Call super.
+    IOReturn status = super::setPowerState(powerStateOrdinal, whatDevice);
+    if (status != kIOReturnSuccess)
+        return status;
+    
     // If the gate is not yet created, we can't do anything yet.
     if (!_cmdGate)
         return kIOReturnSuccess;
@@ -242,37 +272,11 @@ IOReturn VoodooFloppyController::setPowerState(unsigned long powerStateOrdinal, 
     // Wake up command gate if we moving to normal power state.
     if (powerStateOrdinal == kFloppyPowerStateNormal)
         _cmdGate->enable();
-    
     return _cmdGate->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::setPowerStateGated), &powerStateOrdinal);
 }
 
-IOReturn VoodooFloppyController::setPowerStateGated(UInt32 *powerState) {
-    switch (*powerState) {
-        case kFloppyPowerStateNormal:
-            // Reconfigure and reset controller.
-            resetController();
-            configureController();
-            
-            break;
-            
-        case kFloppyPowerStateSleep:
-            // Disable gate to prevent further actions.
-            _cmdGate->disable();
-            break;
-    }
-    return kIOReturnSuccess;
-}
-
-bool VoodooFloppyController::initDrive(UInt8 driveNumber, UInt8 driveType) {
-    // Set drive info (step time = 4ms, load time = 16ms, unload time = 240ms).
-    setTransferSpeed(driveType);
-    setDriveData(0xC, 0x2, 0xF, true);
-    
-    // Calibrate drive and switch off motor.
-    
-    recalibrate();
-    //setMotorOff(_driveADevice);
-    return true;
+IOReturn VoodooFloppyController::probeDriveMedia(VoodooFloppyStorageDevice *floppyDevice) {
+    return _cmdGate->runAction(OSMemberFunctionCast(IOCommandGate::Action, this, &VoodooFloppyController::probeMediaGated), floppyDevice);
 }
 
 IOReturn VoodooFloppyController::readWriteDrive(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks) {
@@ -312,6 +316,23 @@ void VoodooFloppyController::timerHandler(OSObject *owner, IOTimerEventSource *s
     // Turn off motor after inactivity.
     //DBGLOG("VoodooFloppyController::timerHandler()\n");
     setMotorOff();
+}
+
+IOReturn VoodooFloppyController::setPowerStateGated(UInt32 *powerState) {
+    switch (*powerState) {
+        case kFloppyPowerStateNormal:
+            // Reconfigure and reset controller.
+            resetController();
+            configureController();
+            
+            break;
+            
+        case kFloppyPowerStateSleep:
+            // Disable gate to prevent further actions.
+            _cmdGate->disable();
+            break;
+    }
+    return kIOReturnSuccess;
 }
 
 IOReturn VoodooFloppyController::readWriteGated(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 *block, UInt64 *nblks) {
@@ -381,6 +402,23 @@ IOReturn VoodooFloppyController::readWriteGated(VoodooFloppyStorageDevice *flopp
     }
     
     // Operation was successful.
+    return kIOReturnSuccess;
+}
+
+IOReturn VoodooFloppyController::probeMediaGated(VoodooFloppyStorageDevice *floppyDevice) {
+    DBGLOG("VoodooFloppyController::probeMediaGated()\n");
+    selectDrive(floppyDevice);
+    
+    // Try to calibrate to check if media is present.
+    if (seek(10) != kIOReturnSuccess || recalibrate() != kIOReturnSuccess)
+        return kIOReturnNoMedia;
+    else {
+        // Try to read track.
+        if (seek(5) != kIOReturnSuccess || readWriteSectors(false, 5, 0, 5, 1) != kIOReturnSuccess)
+            return kIOReturnNoMedia;
+    }
+    
+    // Media is present.
     return kIOReturnSuccess;
 }
 
@@ -758,10 +796,6 @@ IOReturn VoodooFloppyController::checkForMedia(bool *mediaPresent, UInt8 current
     return result;
 }
 
-/**
- * Recalibrates a drive.
- * @param driveNumber    The drive to recalibrate.
- */
 IOReturn VoodooFloppyController::recalibrate() {
     DBGLOG("VoodooFloppyController::recalibrate()\n");
     IOReturn result = kIOReturnSuccess;

@@ -223,15 +223,10 @@ public:
     virtual void stop(IOService *provider) APPLE_KEXT_OVERRIDE;
     virtual IOReturn setPowerState(unsigned long powerStateOrdinal, IOService *whatDevice) APPLE_KEXT_OVERRIDE;
     
-    bool initDrive(UInt8 driveNumber, UInt8 driveType);
+    IOReturn probeDriveMedia(VoodooFloppyStorageDevice *floppyDevice);
     IOReturn readWriteDrive(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 block, UInt64 nblks);
     
-    void selectDrive(VoodooFloppyStorageDevice *floppyDevice);
-    IOReturn checkForMedia(bool *mediaPresent, UInt8 currentTrack = 0);
-    IOReturn recalibrate();
-    IOReturn seek(UInt8 track);
-    
-    IOReturn readWriteSectors(bool write, UInt8 track, UInt8 head, UInt8 sector, UInt8 count);
+
 private:
     // Drives.
     UInt8 _driveAType;
@@ -250,14 +245,18 @@ private:
     IOMemoryMap *_dmaMemoryMap;
     UInt8 *_dmaBuffer;
     
-    // Command gates.
+    // Command gate.
     IOCommandGate *_cmdGate;
 
-    
+    // Handlers.
     static void interruptHandler(OSObject *target, void *refCon, IOService *nub, int source);
     void timerHandler(OSObject *owner, IOTimerEventSource *sender);
-    IOReturn readWriteGated(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 *block, UInt64 *nblks);
+    
+    // Gated fuctions.
     IOReturn setPowerStateGated(UInt32 *powerState);
+    IOReturn probeMediaGated(VoodooFloppyStorageDevice *floppyDevice);
+    IOReturn readWriteGated(VoodooFloppyStorageDevice *floppyDevice, IOMemoryDescriptor *buffer, UInt64 *block, UInt64 *nblks);
+    
     
     
     bool waitInterrupt(UInt16 timeout);
@@ -285,7 +284,12 @@ private:
     void lbaToChs(UInt32 lba, UInt16* cyl, UInt16* head, UInt16* sector);
     IOReturn parseError(UInt8 st0, UInt8 st1, UInt8 st2);
     
+    void selectDrive(VoodooFloppyStorageDevice *floppyDevice);
+    IOReturn checkForMedia(bool *mediaPresent, UInt8 currentTrack = 0);
+    IOReturn recalibrate();
+    IOReturn seek(UInt8 track);
     
+    IOReturn readWriteSectors(bool write, UInt8 track, UInt8 head, UInt8 sector, UInt8 count);
     
 };
 

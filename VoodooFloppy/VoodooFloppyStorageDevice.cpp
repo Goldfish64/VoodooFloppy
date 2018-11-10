@@ -49,7 +49,6 @@ bool VoodooFloppyStorageDevice::attach(IOService *provider) {
     DBGLOG("VoodooFloppyStorageDevice: Drive number %u, type 0x%X\n", ((OSNumber*)getProperty(kFloppyPropertyDriveIdKey))->unsigned8BitValue(), ((OSNumber*)getProperty(FLOPPY_IOREG_DRIVE_TYPE))->unsigned8BitValue());
     
     probeMedia();
-    //_controller->initDrive(0, FLOPPY_TYPE_1440_35);
     return true;
 }
 
@@ -256,27 +255,16 @@ IOReturn VoodooFloppyStorageDevice::doAsyncReadWrite(IOMemoryDescriptor *buffer,
     return kIOReturnSuccess;
 }
 
-bool VoodooFloppyStorageDevice::probeMedia() {
+void VoodooFloppyStorageDevice::probeMedia() {
     DBGLOG("VoodooFloppyStorageDevice::probeMedia()\n");
-    bool newMediaPresent = true;
+    bool newMediaPresent = _controller->probeDriveMedia(this) == kIOReturnSuccess;
     
-    // Try to calibrate.
-    _mediaPresent = false;
-    if (_controller->seek(10) != kIOReturnSuccess || _controller->recalibrate() != kIOReturnSuccess)
-        newMediaPresent = false;
-    else {
-        // Try to read track.
-        if (_controller->seek(5) != kIOReturnSuccess || _controller->readWriteSectors(false, 5, 0, 5, 1) != kIOReturnSuccess)
-            newMediaPresent = false;
-    }
-
     // Did the media state change?
     if (newMediaPresent != _mediaPresent) {
         IOMediaState mediaState = newMediaPresent ? kIOMediaStateOnline : kIOMediaStateOffline;
         messageClients(kIOMessageMediaStateHasChanged, &mediaState);
     }
     _mediaPresent = newMediaPresent;
-    return newMediaPresent;
 }
 
 
